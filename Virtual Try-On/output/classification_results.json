@@ -1,0 +1,32 @@
+[
+  {
+    "category": "外套",
+    "type": "滑雪服",
+    "color": "粉色",
+    "style": "运动",
+    "material": "未知",
+    "features": [
+      "带帽子",
+      "拉链设计"
+    ],
+    "description": "这是一件粉色的滑雪服，带有帽子和拉链设计，适合户外运动穿着。衣服上有黑色装饰线条，袖口和下摆处有黑色包边，整体设计注重保暖和防风性能。",
+    "confidence": "high",
+    "filename": "images.jpg",
+    "transparent_path": "output\\transparent\\images_transparent.png"
+  },
+  {
+    "category": "裤子",
+    "type": "长裤",
+    "color": "卡其色",
+    "style": "休闲",
+    "material": "棉",
+    "features": [
+      "松紧腰设计",
+      "前袋和纽扣闭合"
+    ],
+    "description": "这是一条卡其色的儿童长裤，采用松紧腰设计，方便穿脱。裤子正面有两个斜插口袋，腰部有一个纽扣用于固定。整体剪裁简洁，适合日常休闲穿着，材质看起来为棉质，柔软舒适。",
+    "confidence": "high",
+    "filename": "The-Essentials-Humus-Pants.jpg",
+    "transparent_path": "output\\transparent\\The-Essentials-Humus-Pants_transparent.png"
+  }
+]
