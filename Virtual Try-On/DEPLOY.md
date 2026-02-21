@@ -38,21 +38,7 @@ cd "AI/Virtual Try-On"
 
 ## 三、添加Python项目
 
-### 1. 创建启动脚本
-由于宝塔面板只能选择文件作为启动文件，需要先创建一个启动脚本。
-
-在终端执行：
-```bash
-cat > "/www/wwwroot/AI/Virtual Try-On/run.py" << 'EOF'
-import uvicorn
-from main import app
-
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
-EOF
-```
-
-### 2. 添加项目
+### 1. 添加项目
 1. 打开「Python项目管理器」
 2. 点击「添加项目」
 3. 填写配置：
@@ -67,7 +53,7 @@ EOF
 
 > **注意**: 选择 `root` 用户以确保进程守护正常工作，避免权限问题。
 
-### 3. 安装依赖
+### 2. 安装依赖
 项目添加后，使用Python项目管理器安装依赖：
 
 **方法1：通过项目管理器安装（推荐）**
@@ -92,7 +78,7 @@ cd "/www/wwwroot/AI/Virtual Try-On"
 pip3 install -r requirements.txt
 ```
 
-### 4. 创建必要的目录
+### 3. 创建必要的目录
 ```bash
 cd "/www/wwwroot/AI/Virtual Try-On"
 mkdir -p data/images
