@@ -9,7 +9,7 @@ sqlalchemy==2.0.25
 
 # 图像处理
 Pillow==10.2.0
-rembg==2.0.50
+rembg>=2.0.55
 
 # HTTP请求
 requests==2.31.0
