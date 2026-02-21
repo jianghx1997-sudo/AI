@@ -21,24 +21,24 @@
 
 ## 二、上传项目代码
 
-> **重要提示**: 项目路径不能包含空格，否则会导致部署失败。请按以下步骤操作。
+> **重要提示**: 项目原名称 `Virtual Try-On` 包含空格，会导致部署失败。需要重命名为 `smart-wardrobe`。
 
-### 使用Git克隆并移动项目
+### 使用Git克隆并重命名项目
 在终端执行：
 ```bash
 cd /www/wwwroot
 git clone https://github.com/jianghx1997-sudo/AI.git
 
-# 将项目移动到无空格路径
-mv "AI/Virtual Try-On" /www/wwwroot/wardrobe
+# 重命名项目目录（去除空格）
+mv "AI/Virtual Try-On" "AI/smart-wardrobe"
 
 # 进入项目目录
-cd /www/wwwroot/wardrobe
+cd /www/wwwroot/AI/smart-wardrobe
 ```
 
 ### 创建必要的目录
 ```bash
-cd /www/wwwroot/wardrobe
+cd /www/wwwroot/AI/smart-wardrobe
 mkdir -p data/images
 mkdir -p uploads
 mkdir -p output/transparent
@@ -58,7 +58,7 @@ mkdir -p output/transparent
 2. 点击「添加守护进程」
 3. 填写配置：
    - 名称: `smart-wardrobe`
-   - 运行目录: `/www/wwwroot/wardrobe`
+   - 运行目录: `/www/wwwroot/AI/smart-wardrobe`
    - 启动命令: `/www/server/pyporject_evn/versions/3.11.9/bin/python run.py`
    - 进程数量: `1`
    - 用户: `root`
@@ -71,7 +71,7 @@ mkdir -p output/transparent
 ls /www/server/pyporject_evn/versions/
 
 # 使用对应版本的pip安装依赖（假设是3.11.9）
-cd /www/wwwroot/wardrobe
+cd /www/wwwroot/AI/smart-wardrobe
 /www/server/pyporject_evn/versions/3.11.9/bin/pip install -r requirements.txt
 ```
 
@@ -82,7 +82,7 @@ cd /www/wwwroot/wardrobe
 2. 点击「添加项目」
 3. 填写配置：
    - 项目名称: `smart-wardrobe`
-   - 项目路径: `/www/wwwroot/wardrobe`
+   - 项目路径: `/www/wwwroot/AI/smart-wardrobe`
    - Python版本: 选择已安装的版本
    - 框架: 选择 `python`（通用Python项目）
    - 启动方式: `python`
@@ -107,7 +107,7 @@ cd /www/wwwroot/wardrobe
 ls /www/server/pyporject_evn/versions/
 
 # 使用对应版本的pip（假设是3.11.9）
-cd /www/wwwroot/wardrobe
+cd /www/wwwroot/AI/smart-wardrobe
 /www/server/pyporject_evn/versions/3.11.9/bin/pip install -r requirements.txt
 ```
 
@@ -152,7 +152,7 @@ location / {
 
 # 静态文件缓存
 location /static/ {
-    alias /www/wwwroot/wardrobe/frontend/;
+    alias /www/wwwroot/AI/smart-wardrobe/frontend/;
     expires 30d;
 }
 ```
@@ -190,14 +190,14 @@ kill -9 进程ID
 ### 2. 权限问题
 ```bash
 # 给www用户权限
-chown -R www:www /www/wwwroot/wardrobe
-chmod -R 755 /www/wwwroot/wardrobe
+chown -R www:www /www/wwwroot/AI/smart-wardrobe
+chmod -R 755 /www/wwwroot/AI/smart-wardrobe
 ```
 
 ### 3. 查看日志
 ```bash
 # 项目日志
-tail -f /www/wwwroot/wardrobe/logs/app.log
+tail -f /www/wwwroot/AI/smart-wardrobe/logs/app.log
 # Python项目管理器日志
 在宝塔面板Python项目管理器中查看
 ```
@@ -221,7 +221,7 @@ tail -f /www/wwwroot/wardrobe/logs/app.log
 
 ```bash
 #!/bin/bash
-cd /www/wwwroot/wardrobe
+cd /www/wwwroot/AI/smart-wardrobe
 
 # 拉取最新代码
 cd /www/wwwroot/AI && git pull
