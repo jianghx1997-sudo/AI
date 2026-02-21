@@ -32,7 +32,8 @@
 ```bash
 cd /www/wwwroot
 git clone https://github.com/jianghx1997-sudo/AI.git
-cd AI
+# 项目在 AI/Virtual Try-On/ 目录下
+cd "AI/Virtual Try-On"
 ```
 
 ## 三、配置项目
@@ -40,7 +41,7 @@ cd AI
 ### 1. 安装依赖
 在终端执行：
 ```bash
-cd /www/wwwroot/AI
+cd "/www/wwwroot/AI/Virtual Try-On"
 pip install -r requirements.txt
 ```
 
@@ -51,7 +52,7 @@ pip install -r requirements.txt
 
 ### 2. 创建必要的目录
 ```bash
-cd /www/wwwroot/AI
+cd "/www/wwwroot/AI/Virtual Try-On"
 mkdir -p data/images
 mkdir -p uploads
 mkdir -p output/transparent
@@ -64,7 +65,7 @@ mkdir -p output/transparent
 2. 点击「添加项目」
 3. 填写配置：
    - 项目名称: `smart-wardrobe`
-   - 项目路径: `/www/wwwroot/AI`
+   - 项目路径: `/www/wwwroot/AI/Virtual Try-On`
    - Python版本: 选择已安装的版本
    - 框架: `FastAPI`
    - 启动方式: `gunicorn`
@@ -104,7 +105,7 @@ location / {
 
 # 静态文件缓存
 location /static/ {
-    alias /www/wwwroot/AI/frontend/;
+    alias "/www/wwwroot/AI/Virtual Try-On/frontend/";
     expires 30d;
 }
 ```
@@ -142,14 +143,14 @@ kill -9 进程ID
 ### 2. 权限问题
 ```bash
 # 给www用户权限
-chown -R www:www /www/wwwroot/AI
-chmod -R 755 /www/wwwroot/AI
+chown -R www:www "/www/wwwroot/AI/Virtual Try-On"
+chmod -R 755 "/www/wwwroot/AI/Virtual Try-On"
 ```
 
 ### 3. 查看日志
 ```bash
 # 项目日志
-tail -f /www/wwwroot/AI/logs/app.log
+tail -f "/www/wwwroot/AI/Virtual Try-On/logs/app.log"
 # Python项目管理器日志
 在宝塔面板Python项目管理器中查看
 ```
@@ -173,10 +174,10 @@ tail -f /www/wwwroot/AI/logs/app.log
 
 ```bash
 #!/bin/bash
-cd /www/wwwroot/AI
+cd "/www/wwwroot/AI/Virtual Try-On"
 
 # 拉取最新代码
-git pull
+cd /www/wwwroot/AI && git pull
 
 # 安装依赖
 pip install -r requirements.txt
