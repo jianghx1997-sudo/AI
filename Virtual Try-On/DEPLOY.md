@@ -36,9 +36,40 @@ git clone https://github.com/jianghx1997-sudo/AI.git
 cd "AI/Virtual Try-On"
 ```
 
-## 三、添加Python项目
+## 三、部署项目
 
-### 1. 添加项目
+### 方法A：使用Supervisor管理（推荐）
+
+如果Python项目管理器出现问题，推荐使用Supervisor来管理进程。
+
+#### 1. 安装Supervisor
+在宝塔「软件商店」搜索并安装「Supervisor管理器」
+
+#### 2. 添加守护进程
+1. 打开「Supervisor管理器」
+2. 点击「添加守护进程」
+3. 填写配置：
+   - 名称: `smart-wardrobe`
+   - 运行目录: `/www/wwwroot/AI/Virtual Try-On`
+   - 启动命令: `/www/server/pyporject_evn/versions/3.11.9/bin/python run.py`
+   - 进程数量: `1`
+   - 用户: `root`
+
+> **注意**: 请将 `3.11.9` 替换为你实际安装的Python版本
+
+#### 3. 安装依赖
+```bash
+# 查看Python版本
+ls /www/server/pyporject_evn/versions/
+
+# 使用对应版本的pip安装依赖（假设是3.11.9）
+cd "/www/wwwroot/AI/Virtual Try-On"
+/www/server/pyporject_evn/versions/3.11.9/bin/pip install -r requirements.txt
+```
+
+### 方法B：使用Python项目管理器
+
+#### 1. 添加项目
 1. 打开「Python项目管理器」
 2. 点击「添加项目」
 3. 填写配置：
@@ -46,14 +77,14 @@ cd "AI/Virtual Try-On"
    - 项目路径: `/www/wwwroot/AI/Virtual Try-On`
    - Python版本: 选择已安装的版本
    - 框架: 选择 `python`（通用Python项目）
-   - 启动方式: `python` 或 `gunicorn`
+   - 启动方式: `python`
    - 启动文件: 选择 `run.py`
    - 端口: `8000`
    - 运行用户: `root`
 
-> **注意**: 选择 `root` 用户以确保进程守护正常工作，避免权限问题。
+> **注意**: 如果添加项目时出现错误，请使用方法A（Supervisor方式）
 
-### 2. 安装依赖
+#### 2. 安装依赖
 项目添加后，使用Python项目管理器安装依赖：
 
 **方法1：通过项目管理器安装（推荐）**
