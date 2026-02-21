@@ -26,7 +26,7 @@ class ClothingCreate(BaseModel):
     type: Optional[str] = None
     color: Optional[str] = None
     color_tone: Optional[str] = None
-    style: Optional[str] = None
+    style: Optional[List[str]] = None
     material: Optional[str] = None
     thickness: Optional[str] = None
     features: Optional[List[str]] = None
@@ -51,7 +51,7 @@ class ClothingUpdate(BaseModel):
     type: Optional[str] = None
     color: Optional[str] = None
     color_tone: Optional[str] = None
-    style: Optional[str] = None
+    style: Optional[List[str]] = None
     material: Optional[str] = None
     thickness: Optional[str] = None
     features: Optional[List[str]] = None
