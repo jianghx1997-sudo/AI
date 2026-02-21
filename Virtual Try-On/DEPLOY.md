@@ -49,7 +49,9 @@ cd "AI/Virtual Try-On"
    - 启动方式: `gunicorn`
    - 启动文件/命令: `main:app` 或 `-k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000`
    - 端口: `8000`
-   - 运行用户: `www`
+   - 运行用户: `root`
+
+> **注意**: 选择 `root` 用户以确保进程守护正常工作，避免权限问题。
 
 > **注意**: 宝塔Python项目管理器不直接支持FastAPI，选择 `python` 作为通用框架，然后通过gunicorn + uvicorn worker来运行FastAPI。
 
