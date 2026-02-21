@@ -86,10 +86,12 @@ lsof -i:8000
 
 ## 五、配置域名和Nginx
 
+> **重要提示**: 请严格按照以下顺序操作，先申请SSL证书，再修改Nginx配置。否则SSL证书申请会失败。
+
 ### 1. 添加网站
 1. 点击「网站」→「添加站点」
 2. 填写配置：
-   - **域名**: `vrseeyou.icu`
+   - **域名**: `vrseeyou.icu`（同时添加 `www.vrseeyou.icu`）
    - **根目录**: `/www/wwwroot/vrseeyou.icu`（可自定义）
    - **PHP版本**: 纯静态
    - **数据库**: 不创建
@@ -104,64 +106,55 @@ lsof -i:8000
    - **发送域名**: `$host`
 4. 点击「提交」
 
-### 3. 修改Nginx配置（高级设置）
-点击「配置文件」，替换为以下内容：
+### 3. 申请SSL证书（先执行此步骤！）
+> **必须先申请SSL证书，再修改Nginx配置！**
 
-```nginx
-server {
-    listen 80;
-    server_name vrseeyou.icu www.vrseeyou.icu;
-    
-    # 访问日志
-    access_log /www/wwwlogs/vrseeyou.icu.log;
-    error_log /www/wwwlogs/vrseeyou.icu.error.log;
-    
-    # 客户端上传大小限制
-    client_max_body_size 50M;
-    
-    location / {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        
-        # WebSocket支持
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        
-        # 超时设置
-        proxy_connect_timeout 60s;
-        proxy_send_timeout 60s;
-        proxy_read_timeout 60s;
-    }
-    
-    # 静态文件缓存（可选）
-    location /static/ {
-        alias /www/wwwroot/AI/smart-wardrobe/frontend/;
-        expires 30d;
-        add_header Cache-Control "public, immutable";
-    }
-}
-```
-
-保存后，点击「重载配置」。
-
-## 六、配置SSL证书（HTTPS）
-
-### 方法1：宝塔免费证书（推荐）
 1. 在网站设置中，点击「SSL」
 2. 选择「Let's Encrypt」
 3. 勾选域名 `vrseeyou.icu` 和 `www.vrseeyou.icu`
 4. 点击「申请」
 5. 申请成功后，开启「强制HTTPS」
 
-### 方法2：其他免费证书
-1. 在网站设置中，点击「SSL」
-2. 选择「其他证书」
-3. 粘贴证书内容（pem格式）和私钥内容
-4. 保存并开启「强制HTTPS」
+### 4. 修改Nginx配置（SSL证书申请成功后再执行）
+> **SSL证书申请成功后，再执行此步骤！**
+
+点击「配置文件」，在server块内添加以下配置（不要删除已有内容，只添加缺失的部分）：
+
+```nginx
+# 在server块内添加以下内容（在已有location块之前或修改已有location块）
+
+# 客户端上传大小限制
+client_max_body_size 50M;
+
+location / {
+    proxy_pass http://127.0.0.1:8000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    
+    # WebSocket支持
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    
+    # 超时设置
+    proxy_connect_timeout 60s;
+    proxy_send_timeout 60s;
+    proxy_read_timeout 60s;
+}
+
+# 静态文件缓存（可选）
+location /static/ {
+    alias /www/wwwroot/AI/smart-wardrobe/frontend/;
+    expires 30d;
+    add_header Cache-Control "public, immutable";
+}
+```
+
+保存后，点击「重载配置」。
+
+> **注意**: 宝塔面板会自动生成SSL相关的配置，请勿删除。只需添加或修改location块即可。
 
 ## 七、配置防火墙
 
