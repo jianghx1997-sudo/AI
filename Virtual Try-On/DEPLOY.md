@@ -24,16 +24,15 @@
 ### 方法1: 使用宝塔文件管理器
 1. 点击左侧菜单「文件」
 2. 进入 `/www/wwwroot` 目录
-3. 创建新文件夹 `wardrobe`
-4. 上传项目文件（压缩后上传，然后解压）
+3. 上传项目压缩包并解压到 `AI` 文件夹
 
 ### 方法2: 使用Git（推荐）
 1. 点击「终端」
 2. 执行以下命令：
 ```bash
 cd /www/wwwroot
-git clone https://github.com/jianghx1997-sudo/AI.git wardrobe
-cd wardrobe
+git clone https://github.com/jianghx1997-sudo/AI.git
+cd AI
 ```
 
 ## 三、配置项目
@@ -41,7 +40,7 @@ cd wardrobe
 ### 1. 安装依赖
 在终端执行：
 ```bash
-cd /www/wwwroot/wardrobe
+cd /www/wwwroot/AI
 pip install -r requirements.txt
 ```
 
@@ -52,6 +51,7 @@ pip install -r requirements.txt
 
 ### 2. 创建必要的目录
 ```bash
+cd /www/wwwroot/AI
 mkdir -p data/images
 mkdir -p uploads
 mkdir -p output/transparent
@@ -63,8 +63,8 @@ mkdir -p output/transparent
 1. 打开「Python项目管理器」
 2. 点击「添加项目」
 3. 填写配置：
-   - 项目名称: `wardrobe`
-   - 项目路径: `/www/wwwroot/wardrobe`
+   - 项目名称: `smart-wardrobe`
+   - 项目路径: `/www/wwwroot/AI`
    - Python版本: 选择已安装的版本
    - 框架: `FastAPI`
    - 启动方式: `gunicorn`
@@ -84,7 +84,7 @@ mkdir -p output/transparent
 
 ### 2. 配置反向代理
 点击网站「设置」→「反向代理」→「添加反向代理」：
-- 代理名称: `wardrobe`
+- 代理名称: `smart-wardrobe`
 - 目标URL: `http://127.0.0.1:8000`
 - 发送域名: `$host`
 
@@ -104,7 +104,7 @@ location / {
 
 # 静态文件缓存
 location /static/ {
-    alias /www/wwwroot/wardrobe/frontend/;
+    alias /www/wwwroot/AI/frontend/;
     expires 30d;
 }
 ```
@@ -142,14 +142,14 @@ kill -9 进程ID
 ### 2. 权限问题
 ```bash
 # 给www用户权限
-chown -R www:www /www/wwwroot/wardrobe
-chmod -R 755 /www/wwwroot/wardrobe
+chown -R www:www /www/wwwroot/AI
+chmod -R 755 /www/wwwroot/AI
 ```
 
 ### 3. 查看日志
 ```bash
 # 项目日志
-tail -f /www/wwwroot/wardrobe/logs/app.log
+tail -f /www/wwwroot/AI/logs/app.log
 # Python项目管理器日志
 在宝塔面板Python项目管理器中查看
 ```
@@ -173,7 +173,7 @@ tail -f /www/wwwroot/wardrobe/logs/app.log
 
 ```bash
 #!/bin/bash
-cd /www/wwwroot/wardrobe
+cd /www/wwwroot/AI
 
 # 拉取最新代码
 git pull
@@ -186,7 +186,7 @@ mkdir -p data/images uploads output/transparent
 
 # 重启服务
 # 在宝塔Python项目管理器中重启，或使用：
-# supervisorctl restart wardrobe
+# supervisorctl restart smart-wardrobe
 ```
 
 然后执行：
