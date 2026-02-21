@@ -45,9 +45,34 @@ cd "/www/wwwroot/AI/Virtual Try-On"
 pip install -r requirements.txt
 ```
 
-如果pip命令不可用，使用：
+如果pip命令不可用，请按以下步骤操作：
+
+**方法1：使用Python项目管理器安装（推荐）**
+1. 打开宝塔面板「Python项目管理器」
+2. 点击项目的「模块」
+3. 点击「安装模块」，输入 requirements.txt 文件路径或手动安装依赖
+
+**方法2：查找正确的pip路径**
 ```bash
-/www/server/pyporject_evn/versions/3.9.7/bin/pip install -r requirements.txt
+# 查看已安装的Python版本
+ls /www/server/pyporject_evn/versions/
+
+# 假设安装的是3.11.9版本，使用对应路径
+/www/server/pyporject_evn/versions/3.11.9/bin/pip install -r requirements.txt
+
+# 或者使用python -m pip
+/www/server/pyporject_evn/versions/3.11.9/bin/python -m pip install -r requirements.txt
+```
+
+**方法3：使用系统Python**
+```bash
+# 安装系统pip
+yum install python3-pip -y  # CentOS
+# 或
+apt install python3-pip -y  # Ubuntu/Debian
+
+# 使用pip3
+pip3 install -r requirements.txt
 ```
 
 ### 2. 创建必要的目录
