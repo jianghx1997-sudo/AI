@@ -3,7 +3,7 @@
  * 与后端API进行通信
  */
 
-const API_BASE_URL = 'http://localhost:8000/api/v1';
+const API_BASE_URL = '/api/v1';
 
 // API请求封装
 async function apiRequest(endpoint, options = {}) {
