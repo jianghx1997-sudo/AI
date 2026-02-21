@@ -36,54 +36,7 @@ git clone https://github.com/jianghx1997-sudo/AI.git
 cd "AI/Virtual Try-On"
 ```
 
-## 三、配置项目
-
-### 1. 安装依赖
-在终端执行：
-```bash
-cd "/www/wwwroot/AI/Virtual Try-On"
-pip install -r requirements.txt
-```
-
-如果pip命令不可用，请按以下步骤操作：
-
-**方法1：使用Python项目管理器安装（推荐）**
-1. 打开宝塔面板「Python项目管理器」
-2. 点击项目的「模块」
-3. 点击「安装模块」，输入 requirements.txt 文件路径或手动安装依赖
-
-**方法2：查找正确的pip路径**
-```bash
-# 查看已安装的Python版本
-ls /www/server/pyporject_evn/versions/
-
-# 假设安装的是3.11.9版本，使用对应路径
-/www/server/pyporject_evn/versions/3.11.9/bin/pip install -r requirements.txt
-
-# 或者使用python -m pip
-/www/server/pyporject_evn/versions/3.11.9/bin/python -m pip install -r requirements.txt
-```
-
-**方法3：使用系统Python**
-```bash
-# 安装系统pip
-yum install python3-pip -y  # CentOS
-# 或
-apt install python3-pip -y  # Ubuntu/Debian
-
-# 使用pip3
-pip3 install -r requirements.txt
-```
-
-### 2. 创建必要的目录
-```bash
-cd "/www/wwwroot/AI/Virtual Try-On"
-mkdir -p data/images
-mkdir -p uploads
-mkdir -p output/transparent
-```
-
-## 四、使用Python项目管理器部署
+## 三、添加Python项目
 
 ### 1. 添加项目
 1. 打开「Python项目管理器」
@@ -98,8 +51,44 @@ mkdir -p output/transparent
    - 端口: `8000`
    - 运行用户: `www`
 
-### 2. 启动项目
-在Python项目管理器中点击「启动」
+### 2. 安装依赖
+项目添加后，使用Python项目管理器安装依赖：
+
+**方法1：通过项目管理器安装（推荐）**
+1. 在Python项目管理器中找到项目
+2. 点击「模块」或「依赖管理」
+3. 点击「安装模块」或「从requirements.txt安装」
+4. 输入模块名称或选择 requirements.txt 文件
+
+**方法2：通过终端安装**
+```bash
+# 先查看Python版本对应的路径
+ls /www/server/pyporject_evn/versions/
+
+# 使用对应版本的pip（假设是3.11.9）
+cd "/www/wwwroot/AI/Virtual Try-On"
+/www/server/pyporject_evn/versions/3.11.9/bin/pip install -r requirements.txt
+```
+
+**方法3：使用系统pip3**
+```bash
+# 如果系统有pip3
+pip3 install -r requirements.txt
+```
+
+### 3. 创建必要的目录
+```bash
+cd "/www/wwwroot/AI/Virtual Try-On"
+mkdir -p data/images
+mkdir -p uploads
+mkdir -p output/transparent
+```
+
+## 四、启动项目
+
+在Python项目管理器中点击项目的「启动」按钮
+
+如果启动失败，检查日志排查问题。
 
 ## 五、配置Nginx反向代理
 
