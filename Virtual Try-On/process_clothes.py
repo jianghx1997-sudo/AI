@@ -68,7 +68,7 @@ def classify_with_qwen(image_path):
         "messages": [
             {
                 "role": "system",
-                "content": "你是一个专业的服装识别专家。请分析图片中的服装，并提供详细的分类信息。"
+                "content": "你是一个专业的服装识别与穿搭顾问专家。请分析图片中的服装，提供详细的分类信息以及穿搭搭配建议，以便后续根据场景、天气、风格等为用户推荐每日搭配方案。"
             },
             {
                 "role": "user",
@@ -81,15 +81,28 @@ def classify_with_qwen(image_path):
                     },
                     {
                         "type": "text",
-                        "text": """请详细分析这张服装图片，并按以下JSON格式返回结果：
+                        "text": """请详细分析这张服装图片，并按以下JSON格式返回结果（用于智能穿搭推荐系统）：
 {
-    "category": "服装类别（如：上衣、裤子、裙子、外套、鞋子等）",
+    "category": "服装类别（如：上衣、裤子、裙子、外套、鞋子、配饰等）",
     "type": "具体类型（如：T恤、牛仔裤、连衣裙、运动鞋等）",
     "color": "主要颜色",
-    "style": "风格（如：休闲、正式、运动、时尚等）",
-    "material": "材质（如棉、牛仔、皮革等，如看不清可写未知）",
+    "color_tone": "色调类型（暖色调/冷色调/中性色/多色）",
+    "style": "风格（如：休闲、正式、运动、通勤、时尚、街头、复古等）",
+    "material": "材质（如棉、牛仔、皮革、羊毛等，如看不清可写未知）",
+    "thickness": "厚薄程度（薄款/中等/厚款）",
     "features": ["显著特征1", "显著特征2"],
-    "description": "详细描述",
+    "season": ["适合季节，可多选：春、夏、秋、冬"],
+    "suitable_weather": ["适合天气，可多选：晴天、阴天、小雨、冷天、热天、大风等"],
+    "suitable_occasions": ["适合场合，可多选：日常休闲、上班通勤、户外运动、正式场合、约会、聚会、旅行等"],
+    "suitable_age_group": "适合年龄段（如：青少年、青年、中年、全年龄等）",
+    "body_type_tips": "适合的身材类型建议（如：适合高挑身材、显瘦、显高等）",
+    "matching_tops": ["推荐搭配的上衣类型，如：白色T恤、衬衫等"],
+    "matching_bottoms": ["推荐搭配的下装类型，如：黑色紧身裤、牛仔裤等"],
+    "matching_shoes": ["推荐搭配的鞋子类型，如：小白鞋、高跟鞋等"],
+    "matching_accessories": ["推荐搭配的配饰，如：帆布包、棒球帽等"],
+    "matching_colors": ["推荐的搭配颜色，如：白色、米色、黑色等"],
+    "outfit_tags": ["穿搭标签，可多选：ins风、极简风、法式浪漫、韩系、日系、北欧风、复古等"],
+    "description": "详细描述（包括穿搭建议）",
     "confidence": "识别置信度（high/medium/low）"
 }
 请只返回JSON格式的结果，不要有其他文字说明。"""
@@ -212,11 +225,31 @@ def process_all_images():
         print(f"\n  ✓ 分类结果:")
         print(f"    📁 类别: {classification.get('category', 'N/A')}")
         print(f"    👔 类型: {classification.get('type', 'N/A')}")
-        print(f"    🎨 颜色: {classification.get('color', 'N/A')}")
+        print(f"    🎨 颜色: {classification.get('color', 'N/A')} ({classification.get('color_tone', 'N/A')})")
         print(f"    ✨ 风格: {classification.get('style', 'N/A')}")
-        print(f"    🧵 材质: {classification.get('material', 'N/A')}")
+        print(f"    🧵 材质: {classification.get('material', 'N/A')} / {classification.get('thickness', 'N/A')}")
         if classification.get('features'):
             print(f"    📝 特征: {', '.join(classification['features'])}")
+        if classification.get('season'):
+            print(f"    🌸 适合季节: {', '.join(classification['season'])}")
+        if classification.get('suitable_weather'):
+            print(f"    🌤 适合天气: {', '.join(classification['suitable_weather'])}")
+        if classification.get('suitable_occasions'):
+            print(f"    🏷 适合场合: {', '.join(classification['suitable_occasions'])}")
+        if classification.get('outfit_tags'):
+            print(f"    🔖 穿搭标签: {', '.join(classification['outfit_tags'])}")
+        if classification.get('matching_tops'):
+            print(f"    👕 搭配上衣: {', '.join(classification['matching_tops'])}")
+        if classification.get('matching_bottoms'):
+            print(f"    👖 搭配下装: {', '.join(classification['matching_bottoms'])}")
+        if classification.get('matching_shoes'):
+            print(f"    👟 搭配鞋子: {', '.join(classification['matching_shoes'])}")
+        if classification.get('matching_accessories'):
+            print(f"    👜 搭配配饰: {', '.join(classification['matching_accessories'])}")
+        if classification.get('matching_colors'):
+            print(f"    🎨 推荐配色: {', '.join(classification['matching_colors'])}")
+        if classification.get('body_type_tips'):
+            print(f"    💃 身材建议: {classification['body_type_tips']}")
         print(f"    📊 置信度: {classification.get('confidence', 'N/A')}")
         if classification.get('description'):
             print(f"    💬 描述: {classification['description']}")
