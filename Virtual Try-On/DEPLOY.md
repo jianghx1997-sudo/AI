@@ -21,19 +21,27 @@
 
 ## 二、上传项目代码
 
-### 方法1: 使用宝塔文件管理器
-1. 点击左侧菜单「文件」
-2. 进入 `/www/wwwroot` 目录
-3. 上传项目压缩包并解压到 `AI` 文件夹
+> **重要提示**: 项目路径不能包含空格，否则会导致部署失败。请按以下步骤操作。
 
-### 方法2: 使用Git（推荐）
-1. 点击「终端」
-2. 执行以下命令：
+### 使用Git克隆并移动项目
+在终端执行：
 ```bash
 cd /www/wwwroot
 git clone https://github.com/jianghx1997-sudo/AI.git
-# 项目在 AI/Virtual Try-On/ 目录下
-cd "AI/Virtual Try-On"
+
+# 将项目移动到无空格路径
+mv "AI/Virtual Try-On" /www/wwwroot/wardrobe
+
+# 进入项目目录
+cd /www/wwwroot/wardrobe
+```
+
+### 创建必要的目录
+```bash
+cd /www/wwwroot/wardrobe
+mkdir -p data/images
+mkdir -p uploads
+mkdir -p output/transparent
 ```
 
 ## 三、部署项目
@@ -50,7 +58,7 @@ cd "AI/Virtual Try-On"
 2. 点击「添加守护进程」
 3. 填写配置：
    - 名称: `smart-wardrobe`
-   - 运行目录: `/www/wwwroot/AI/Virtual Try-On`
+   - 运行目录: `/www/wwwroot/wardrobe`
    - 启动命令: `/www/server/pyporject_evn/versions/3.11.9/bin/python run.py`
    - 进程数量: `1`
    - 用户: `root`
@@ -63,7 +71,7 @@ cd "AI/Virtual Try-On"
 ls /www/server/pyporject_evn/versions/
 
 # 使用对应版本的pip安装依赖（假设是3.11.9）
-cd "/www/wwwroot/AI/Virtual Try-On"
+cd /www/wwwroot/wardrobe
 /www/server/pyporject_evn/versions/3.11.9/bin/pip install -r requirements.txt
 ```
 
@@ -74,7 +82,7 @@ cd "/www/wwwroot/AI/Virtual Try-On"
 2. 点击「添加项目」
 3. 填写配置：
    - 项目名称: `smart-wardrobe`
-   - 项目路径: `/www/wwwroot/AI/Virtual Try-On`
+   - 项目路径: `/www/wwwroot/wardrobe`
    - Python版本: 选择已安装的版本
    - 框架: 选择 `python`（通用Python项目）
    - 启动方式: `python`
@@ -99,7 +107,7 @@ cd "/www/wwwroot/AI/Virtual Try-On"
 ls /www/server/pyporject_evn/versions/
 
 # 使用对应版本的pip（假设是3.11.9）
-cd "/www/wwwroot/AI/Virtual Try-On"
+cd /www/wwwroot/wardrobe
 /www/server/pyporject_evn/versions/3.11.9/bin/pip install -r requirements.txt
 ```
 
@@ -107,14 +115,6 @@ cd "/www/wwwroot/AI/Virtual Try-On"
 ```bash
 # 如果系统有pip3
 pip3 install -r requirements.txt
-```
-
-### 3. 创建必要的目录
-```bash
-cd "/www/wwwroot/AI/Virtual Try-On"
-mkdir -p data/images
-mkdir -p uploads
-mkdir -p output/transparent
 ```
 
 ## 四、启动项目
@@ -152,7 +152,7 @@ location / {
 
 # 静态文件缓存
 location /static/ {
-    alias "/www/wwwroot/AI/Virtual Try-On/frontend/";
+    alias /www/wwwroot/wardrobe/frontend/;
     expires 30d;
 }
 ```
@@ -190,14 +190,14 @@ kill -9 进程ID
 ### 2. 权限问题
 ```bash
 # 给www用户权限
-chown -R www:www "/www/wwwroot/AI/Virtual Try-On"
-chmod -R 755 "/www/wwwroot/AI/Virtual Try-On"
+chown -R www:www /www/wwwroot/wardrobe
+chmod -R 755 /www/wwwroot/wardrobe
 ```
 
 ### 3. 查看日志
 ```bash
 # 项目日志
-tail -f "/www/wwwroot/AI/Virtual Try-On/logs/app.log"
+tail -f /www/wwwroot/wardrobe/logs/app.log
 # Python项目管理器日志
 在宝塔面板Python项目管理器中查看
 ```
@@ -221,7 +221,7 @@ tail -f "/www/wwwroot/AI/Virtual Try-On/logs/app.log"
 
 ```bash
 #!/bin/bash
-cd "/www/wwwroot/AI/Virtual Try-On"
+cd /www/wwwroot/wardrobe
 
 # 拉取最新代码
 cd /www/wwwroot/AI && git pull
