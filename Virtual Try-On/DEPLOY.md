@@ -45,11 +45,13 @@ cd "AI/Virtual Try-On"
    - 项目名称: `smart-wardrobe`
    - 项目路径: `/www/wwwroot/AI/Virtual Try-On`
    - Python版本: 选择已安装的版本
-   - 框架: `FastAPI`
+   - 框架: 选择 `python`（通用Python项目）
    - 启动方式: `gunicorn`
-   - 启动文件: `main:app`
+   - 启动文件/命令: `main:app` 或 `-k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000`
    - 端口: `8000`
    - 运行用户: `www`
+
+> **注意**: 宝塔Python项目管理器不直接支持FastAPI，选择 `python` 作为通用框架，然后通过gunicorn + uvicorn worker来运行FastAPI。
 
 ### 2. 安装依赖
 项目添加后，使用Python项目管理器安装依赖：
