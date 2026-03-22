@@ -1,0 +1,22 @@
+{
+  "version": "v1",
+  "minCards": 2,
+  "maxCards": 5,
+  "minCoverPoints": 2,
+  "maxCoverPoints": 4,
+  "minHashtags": 3,
+  "maxTitleLength": 14,
+  "maxCoverPointLength": 14,
+  "minCardBodyLength": 60,
+  "maxCardBodyLength": 320,
+  "weakPatterns": [
+    "本质上",
+    "真正卖的是",
+    "城市性格",
+    "生活秩序",
+    "下次别人聊到",
+    "你可以这样接话",
+    "很有记忆点",
+    "很有氛围感"
+  ]
+}
