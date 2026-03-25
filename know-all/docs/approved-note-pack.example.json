@@ -1,0 +1,43 @@
+{
+  "topic": "示例话题",
+  "title": "每日闲聊语料库｜示例话题：一句有记忆点的判断 😊",
+  "cover": {
+    "title": "更短的封面主标题",
+    "subtitle": "一句更容易放进封面的副标题",
+    "points": [
+      {
+        "text": "第一个封面点",
+        "mark_raw": "😊",
+        "mark_render": "点"
+      },
+      {
+        "text": "第二个封面点",
+        "mark_raw": "📌",
+        "mark_render": "要"
+      }
+    ]
+  },
+  "cards": [
+    {
+      "id": "01",
+      "title": "第一张知识卡标题",
+      "mark_raw": "😊",
+      "mark_render": "点",
+      "paragraphs": [
+        "第一段：现象、误区或常见感觉。",
+        "第二段：解释 Why。",
+        "第三段：只有在确实必要时才加场景或补充。"
+      ]
+    }
+  ],
+  "hashtags": [
+    "#示例",
+    "#每日闲聊语料库"
+  ],
+  "render_options": {
+    "top_tags": false,
+    "bottom_tips": false,
+    "closing_page": false,
+    "theme_cover_required": true
+  }
+}

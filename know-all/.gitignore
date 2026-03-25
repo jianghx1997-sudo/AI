@@ -4,4 +4,7 @@ dist/
 .env.local
 coverage/
 *.log
-
+__pycache__/
+tmp/
+outputs/_draft_staging/
+outputs/20260325_协议测试/
