@@ -25,7 +25,7 @@
 
 1. 用户给出话题
 2. 写作阶段生成审核稿
-3. 本地审核文档阶段将审核稿写入 `outputs/YYYYMMDD_话题/01_审核稿.docx`
+3. 本地审核文档阶段将审核稿写入 `outputs/YYYYMMDD_话题/01_审核稿.xlsx`
 4. 用户直接修改本地文稿
 5. 用户明确确认文稿无误
 6. 从本地文稿读取内容，整理成 `02_approved-note-pack.json`
@@ -39,30 +39,30 @@
 - 不负责本地文档落盘
 
 ### 2. 本地审核文档阶段
-- 只负责创建专题文件夹和 `01_审核稿.docx`
-- 负责本地文档版式和话题库超链接
-- 本地文稿一旦存在，即成为审核阶段唯一 source of truth
+- 只负责创建专题文件夹和 `01_审核稿.xlsx`
+- 负责本地审核表格固定结构和话题库超链接
+- 本地审核表格一旦存在，即成为审核阶段唯一 source of truth
 
 ### 3. 出图阶段
 - 只负责从已确认的本地文稿读取内容并出图
 - 不负责回改文稿
 - 默认按固定模板参数执行，而不是临场发明新版式
 
-## 本地审核 docx 的唯一允许实现
+## 本地审核 xlsx 的唯一允许实现
 
-从现在开始，本地审核文档只能通过下面这条链路生成：
+从现在开始，本地审核表格只能通过下面这条链路生成：
 
-`UTF-8 结构化源文件 -> tools/write_review_docx.py -> outputs/YYYYMMDD_话题/01_审核稿.docx`
+`UTF-8 结构化源文件 -> tools/write_review_xlsx.py -> outputs/YYYYMMDD_话题/01_审核稿.xlsx`
 
 明确规定：
-- 唯一允许的写入脚本是 [tools/write_review_docx.py](E:\AI\know-all\tools\write_review_docx.py)
-- 旧的专题专用临时脚本只视为历史遗留，不再作为默认入口
-- 不再允许通过 shell 内联大段中文、emoji 和中文路径直接拼装 docx
+- 唯一允许的写入脚本是 [tools/write_review_xlsx.py](E:\AI\know-all\tools\write_review_xlsx.py)
+- 旧的 docx 专用写入脚本只视为历史遗留，不再作为默认入口
+- 不再允许通过 shell 内联大段中文、emoji 和中文路径直接拼装本地审核文档
 
 这样做的目的，是彻底避开：
 - 中文路径被 shell 破坏成 `???`
 - emoji 写入失败
-- Word 文稿结构不稳定
+- 本地审核源结构不稳定
 
 ## 专题文件夹约定
 
@@ -71,7 +71,7 @@
 ```text
 outputs/
   20260324_鸡尾酒/
-    01_审核稿.docx
+    01_审核稿.xlsx
     02_approved-note-pack.json
     话题-cover.png
     话题-card-01.png
