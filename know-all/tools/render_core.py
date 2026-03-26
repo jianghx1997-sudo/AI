@@ -16,7 +16,11 @@ COFFEE = "#7B3F2A"
 ACCENT = "#C98F5A"
 TEXT = "#222222"
 LINE = "#E7D6C8"
-SLOGAN = "把日常话题讲明白，让闲聊更有料"
+SLOGAN = (
+    "\u628a\u65e5\u5e38\u8bdd\u9898\u8bb2\u660e\u767d\uff0c"
+    "\u8ba9\u95f2\u804a\u66f4\u6709\u6599"
+)
+SAMPLE_CHAR = "\u6d4b"
 
 
 def safe_font(size: int, bold: bool = False):
@@ -46,17 +50,32 @@ def wrap_text(text: str, font, max_width: int, draw: ImageDraw.ImageDraw) -> lis
     return lines
 
 
-def draw_wrapped(draw: ImageDraw.ImageDraw, text: str, xy: tuple[int, int], font, fill: str, max_width: int, line_spacing: int) -> int:
+def draw_wrapped(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    xy: tuple[int, int],
+    font,
+    fill: str,
+    max_width: int,
+    line_spacing: int,
+) -> int:
     x, y = xy
     lines = wrap_text(text, font, max_width, draw)
-    bbox = draw.textbbox((0, 0), "测", font=font)
+    bbox = draw.textbbox((0, 0), SAMPLE_CHAR, font=font)
     line_height = bbox[3] - bbox[1]
     for idx, line in enumerate(lines):
         draw.text((x, y + idx * (line_height + line_spacing)), line, font=font, fill=fill)
     return y + len(lines) * (line_height + line_spacing) - line_spacing
 
 
-def draw_round_rect(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], radius: int, fill: str, outline: str | None = None, width: int = 1):
+def draw_round_rect(
+    draw: ImageDraw.ImageDraw,
+    box: tuple[int, int, int, int],
+    radius: int,
+    fill: str,
+    outline: str | None = None,
+    width: int = 1,
+):
     draw.rounded_rectangle(box, radius=radius, fill=fill, outline=outline, width=width)
 
 
@@ -203,7 +222,11 @@ def render_preview(image_paths: Iterable[Path], out_path: Path) -> None:
     cols = 2
     rows = math.ceil(len(images) / cols)
     gap = 24
-    canvas = Image.new("RGB", (cols * thumb_w + (cols + 1) * gap, rows * thumb_h + (rows + 1) * gap), "#1F2528")
+    canvas = Image.new(
+        "RGB",
+        (cols * thumb_w + (cols + 1) * gap, rows * thumb_h + (rows + 1) * gap),
+        "#1F2528",
+    )
     for idx, image in enumerate(images):
         image = image.resize((thumb_w, thumb_h))
         row, col = divmod(idx, cols)
