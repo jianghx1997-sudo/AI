@@ -1,0 +1,44 @@
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+
+const clothesRouter = require('./routes/clothes');
+const { UPLOAD_DIR, ensureUploadDirs } = require('./services/uploadService');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+ensureUploadDirs();
+
+app.use(cors());
+app.use(express.json());
+app.use('/uploads', express.static(UPLOAD_DIR));
+
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.use('/api', clothesRouter);
+
+app.use((error, req, res, next) => {
+  console.error('服务器错误:', error);
+  res.status(500).json({ success: false, error: error.message || '服务器内部错误' });
+});
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log('\n🚀 智能衣橱后端服务已启动');
+  console.log(`📍 监听地址: http://0.0.0.0:${PORT}`);
+  console.log(`📁 上传目录: ${UPLOAD_DIR}`);
+  console.log(`🤖 AI模式: ${process.env.MOCK_AI === 'true' ? '模拟模式（无需API Key）' : '真实API模式'}`);
+  console.log('\nAPI端点:');
+  console.log('  POST /api/clothes/recognize  - 上传并识别衣物（不入库）');
+  console.log('  POST /api/clothes            - 确认保存衣物');
+  console.log('  POST /api/clothes/upload     - 旧版上传识别并保存');
+  console.log('  GET  /api/clothes            - 获取所有衣物');
+  console.log('  GET  /api/clothes/:id        - 获取单件衣物');
+  console.log('  PUT  /api/clothes/:id        - 更新衣物');
+  console.log('  DELETE /api/clothes/:id      - 删除衣物');
+  console.log('  POST /api/clothes/:id/favorite - 切换收藏');
+  console.log('  POST /api/clothes/:id/wear   - 记录穿着');
+  console.log('  GET  /api/stats/categories   - 分类统计\n');
+});

@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Environment and secrets
+.env
+*.local
+.claude/*.local.json
+
+# Accidental root lockfile; backend/frontend keep their own lockfiles
+/package-lock.json
+
+# Runtime data
+backend/data/*.db
+backend/uploads/
+backups/
+
+# Build and generated artifacts
+frontend/dist/
+.playwright-cli/
+output/
+
+# Logs and caches
+*.log
+.DS_Store
+Thumbs.db

@@ -1,0 +1,110 @@
+:root {
+  --sw-bg: #f7f8f5;
+  --sw-surface: #ffffff;
+  --sw-surface-soft: #f1f5f1;
+  --sw-text: #22302b;
+  --sw-text-muted: #718079;
+  --sw-border: #e3e9e4;
+  --sw-primary: #2f8f7b;
+  --sw-primary-soft: #e4f3ee;
+  --sw-accent: #d97961;
+  --sw-accent-soft: #fff0eb;
+  --sw-shadow: 0 8px 24px rgba(43, 65, 56, 0.07);
+  --sw-radius: 8px;
+  --sw-page-x: 16px;
+
+  --van-primary-color: var(--sw-primary);
+  --van-danger-color: var(--sw-accent);
+  --van-success-color: var(--sw-primary);
+  --van-button-border-radius: 999px;
+  --van-button-primary-background: var(--sw-primary);
+  --van-button-primary-border-color: var(--sw-primary);
+  --van-nav-bar-title-text-color: var(--sw-text);
+  --van-tabbar-item-active-color: var(--sw-primary);
+  --van-field-label-color: var(--sw-text-muted);
+}
+
+.page-shell {
+  min-height: 100vh;
+  padding: 16px var(--sw-page-x) 84px;
+  background: var(--sw-bg);
+}
+
+.surface-card {
+  background: var(--sw-surface);
+  border: 1px solid var(--sw-border);
+  border-radius: var(--sw-radius);
+  box-shadow: var(--sw-shadow);
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.section-title {
+  font-size: 16px;
+  line-height: 1.35;
+  font-weight: 650;
+  color: var(--sw-text);
+}
+
+.section-action {
+  font-size: 13px;
+  color: var(--sw-primary);
+  white-space: nowrap;
+}
+
+.muted-text {
+  color: var(--sw-text-muted);
+}
+
+.chip-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+
+.chip-row::-webkit-scrollbar {
+  display: none;
+}
+
+.choice-chip {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 6px 12px;
+  border: 1px solid var(--sw-border);
+  border-radius: 999px;
+  background: var(--sw-surface);
+  color: var(--sw-text-muted);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.choice-chip.active {
+  border-color: var(--sw-primary);
+  background: var(--sw-primary-soft);
+  color: var(--sw-primary);
+  font-weight: 600;
+}
+
+.subtle-button {
+  border-color: var(--sw-border) !important;
+  color: var(--sw-text) !important;
+  background: var(--sw-surface) !important;
+}
+
+.primary-soft {
+  background: var(--sw-primary-soft);
+  color: var(--sw-primary);
+}
+
+.accent-soft {
+  background: var(--sw-accent-soft);
+  color: var(--sw-accent);
+}

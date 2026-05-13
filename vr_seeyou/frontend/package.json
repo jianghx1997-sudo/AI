@@ -1,0 +1,24 @@
+{
+  "name": "seeyou-wardrobe-frontend",
+  "version": "1.0.0",
+  "description": "AI智能衣橱PWA前端",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "vue": "^3.4.15",
+    "vue-router": "^4.2.5",
+    "pinia": "^2.1.7",
+    "vant": "^4.8.2",
+    "axios": "^1.6.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.3",
+    "vite": "^5.0.11",
+    "vite-plugin-pwa": "^0.17.4",
+    "unplugin-vue-components": "^0.26.0"
+  }
+}
