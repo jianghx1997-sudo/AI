@@ -804,6 +804,9 @@ function buildOutfit(combo, context, template, profile, hardWarnings) {
     weather: context.weather,
     items,
     score: clamp(score, 1, 100),
+    rule_score: clamp(score, 1, 100),
+    hybrid_score: clamp(score, 1, 100),
+    ai_review_status: 'not_requested',
     reason: reasonParts.join('；'),
     style_notes: styleNotes,
     missing_items: constraints.filter(item => /缺少|未提供|没有/.test(item)),
@@ -992,6 +995,7 @@ function buildGapSuggestions(clothes, context, template) {
 
 function recommendOutfits(clothes, context = {}) {
   const recommendationContext = normalizeRecommendationContext(context);
+  const maxOutfits = clamp(Number(context.maxOutfits) || 3, 1, 5);
   const safeClothes = enrichClothes(Array.isArray(clothes) ? clothes : []);
   const template = getWearTemplate(recommendationContext);
   const profile = buildPreferenceProfile(safeClothes, context.feedbackLogs || []);
@@ -1003,7 +1007,7 @@ function recommendOutfits(clothes, context = {}) {
   const outfits = planned
     .map(plan => buildOutfit(plan, recommendationContext, template, profile, hardWarnings))
     .sort((a, b) => b.score - a.score)
-    .slice(0, 3)
+    .slice(0, maxOutfits)
     .map((outfit, index) => ({
       ...outfit,
       name: nameOutfit(outfit, index, recommendationContext, template)

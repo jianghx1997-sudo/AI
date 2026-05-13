@@ -2,9 +2,11 @@ const express = require('express');
 
 const { dbAsync } = require('../database');
 const { recognizeClothing } = require('../aiService');
+const { requireAuth } = require('../middleware/auth');
 const { analyzeWardrobe } = require('../services/wardrobeAnalysisService');
 const { getCurrentWeather, locateByIp, reverseGeocode } = require('../services/weatherService');
 const { recommendOutfits } = require('../services/recommendationService');
+const { reviewRecommendations } = require('../services/aiReviewService');
 const {
   createImageUpload,
   moveTempUploadToPermanent,
@@ -15,6 +17,8 @@ const {
 const router = express.Router();
 const recognizeUpload = createImageUpload({ temp: true });
 const legacyUpload = createImageUpload();
+
+router.use(requireAuth);
 
 const CLOTH_FIELDS = [
   'name',
@@ -137,6 +141,7 @@ router.post('/clothes', async (req, res) => {
     }
 
     payload.image_path = moveTempUploadToPermanent(payload.image_path);
+    payload.user_id = req.user.id;
 
     const cloth = await dbAsync.addCloth(payload);
     res.json({ success: true, data: cloth, message: '保存成功' });
@@ -155,6 +160,7 @@ router.post('/clothes/upload', legacyUpload.single('image'), async (req, res) =>
 
     const aiResult = await recognizeFile(req.file);
     const cloth = await dbAsync.addCloth({
+      user_id: req.user.id,
       name: aiResult.name,
       image_path: toPublicUploadPath(req.file.filename),
       category: aiResult.category,
@@ -198,6 +204,7 @@ router.get('/clothes', async (req, res) => {
       }
     });
 
+    filters.userId = req.user.id;
     const clothes = await dbAsync.getAllClothes(filters);
     res.json({ success: true, data: clothes });
   } catch (error) {
@@ -208,7 +215,7 @@ router.get('/clothes', async (req, res) => {
 
 router.get('/clothes/:id', async (req, res) => {
   try {
-    const cloth = await dbAsync.getClothById(req.params.id);
+    const cloth = await dbAsync.getClothById(req.params.id, req.user.id);
     if (!cloth) {
       return res.status(404).json({ success: false, error: '衣物不存在' });
     }
@@ -220,7 +227,7 @@ router.get('/clothes/:id', async (req, res) => {
 
 router.put('/clothes/:id', async (req, res) => {
   try {
-    const cloth = await dbAsync.getClothById(req.params.id);
+    const cloth = await dbAsync.getClothById(req.params.id, req.user.id);
     if (!cloth) {
       return res.status(404).json({ success: false, error: '衣物不存在' });
     }
@@ -249,7 +256,7 @@ router.put('/clothes/:id', async (req, res) => {
       return res.status(400).json({ success: false, error: '没有可更新的字段' });
     }
 
-    const result = await dbAsync.updateCloth(req.params.id, updates);
+    const result = await dbAsync.updateCloth(req.params.id, updates, req.user.id);
     res.json({ success: true, message: '更新成功', data: result });
   } catch (error) {
     console.error('更新衣物失败:', error);
@@ -259,13 +266,13 @@ router.put('/clothes/:id', async (req, res) => {
 
 router.delete('/clothes/:id', async (req, res) => {
   try {
-    const cloth = await dbAsync.getClothById(req.params.id);
+    const cloth = await dbAsync.getClothById(req.params.id, req.user.id);
     if (!cloth) {
       return res.status(404).json({ success: false, error: '衣物不存在' });
     }
 
     removeUploadedImage(cloth.image_path);
-    await dbAsync.deleteCloth(req.params.id);
+    await dbAsync.deleteCloth(req.params.id, req.user.id);
     res.json({ success: true, message: '删除成功' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -274,7 +281,7 @@ router.delete('/clothes/:id', async (req, res) => {
 
 router.get('/stats/categories', async (req, res) => {
   try {
-    const stats = await dbAsync.getCategoryStats();
+    const stats = await dbAsync.getCategoryStats(req.user.id);
     res.json({ success: true, data: stats });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -283,7 +290,7 @@ router.get('/stats/categories', async (req, res) => {
 
 router.get('/wardrobe/analysis', async (req, res) => {
   try {
-    const clothes = await dbAsync.getAllClothes();
+    const clothes = await dbAsync.getAllClothes({ userId: req.user.id });
     res.json({ success: true, data: analyzeWardrobe(clothes) });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -322,7 +329,9 @@ router.get('/location/regeo', async (req, res) => {
 
 router.get('/recommendations/outfits', async (req, res) => {
   try {
-    const clothes = await dbAsync.getAllClothes();
+    const clothes = await dbAsync.getAllClothes({ userId: req.user.id });
+    const aiReviewEnabled = req.query.aiReview === 'true' || req.query.aiReview === '1';
+    const occasion = req.query.occasion || '休闲';
     let weather = {
       source: 'manual',
       weather: req.query.weather || '晴',
@@ -338,19 +347,28 @@ router.get('/recommendations/outfits', async (req, res) => {
       }
     }
 
-    const feedbackLogs = await dbAsync.getRecommendationLogs({ limit: 80 });
+    const feedbackLogs = await dbAsync.getRecommendationLogs({ userId: req.user.id, limit: 80 });
     const result = recommendOutfits(clothes, {
       weather,
-      occasion: req.query.occasion || '休闲',
-      feedbackLogs
+      occasion,
+      feedbackLogs,
+      maxOutfits: aiReviewEnabled ? 5 : 3
+    });
+    const reviewedResult = await reviewRecommendations(result, {
+      weather,
+      occasion
+    }, {
+      enabled: aiReviewEnabled,
+      finalLimit: 3
     });
 
     res.json({
       success: true,
       data: {
         weather,
-        occasion: req.query.occasion || '休闲',
-        ...result
+        occasion,
+        ai_review_enabled: aiReviewEnabled,
+        ...reviewedResult
       }
     });
   } catch (error) {
@@ -361,6 +379,11 @@ router.get('/recommendations/outfits', async (req, res) => {
 router.post('/recommendations/feedback', async (req, res) => {
   try {
     const itemIds = parseItemIds(req.body.item_ids);
+    const ownedItemIds = [];
+    for (const itemId of itemIds) {
+      const cloth = await dbAsync.getClothById(itemId, req.user.id);
+      if (cloth) ownedItemIds.push(itemId);
+    }
     const feedbackReason = req.body.feedback_reason || req.body.reason || '';
     const feedbackNote = feedbackReason || req.body.note || '';
     const result = await dbAsync.addRecommendationLog({
@@ -368,18 +391,20 @@ router.post('/recommendations/feedback', async (req, res) => {
       occasion: req.body.occasion,
       weather: req.body.weather,
       temperature: req.body.temperature,
-      item_ids: itemIds,
+      item_ids: ownedItemIds,
       feedback: req.body.feedback,
-      note: feedbackNote
+      note: feedbackNote,
+      user_id: req.user.id
     });
 
     const wearLogs = [];
     if (req.body.feedback === 'worn') {
-      for (const itemId of itemIds) {
-        const cloth = await dbAsync.getClothById(itemId);
+      for (const itemId of ownedItemIds) {
+        const cloth = await dbAsync.getClothById(itemId, req.user.id);
         if (!cloth) continue;
 
         const wearResult = await dbAsync.recordWear(itemId, {
+          user_id: req.user.id,
           occasion: req.body.occasion,
           weather: req.body.weather,
           note: feedbackNote || `来自推荐反馈：${req.body.outfit_name || '搭配'}`
@@ -403,12 +428,12 @@ router.post('/recommendations/feedback', async (req, res) => {
 
 router.post('/clothes/:id/favorite', async (req, res) => {
   try {
-    const cloth = await dbAsync.getClothById(req.params.id);
+    const cloth = await dbAsync.getClothById(req.params.id, req.user.id);
     if (!cloth) {
       return res.status(404).json({ success: false, error: '衣物不存在' });
     }
-    await dbAsync.toggleFavorite(req.params.id);
-    const updated = await dbAsync.getClothById(req.params.id);
+    await dbAsync.toggleFavorite(req.params.id, req.user.id);
+    const updated = await dbAsync.getClothById(req.params.id, req.user.id);
     res.json({ success: true, data: { is_favorite: updated.is_favorite } });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -417,17 +442,18 @@ router.post('/clothes/:id/favorite', async (req, res) => {
 
 router.post('/clothes/:id/wear', async (req, res) => {
   try {
-    const cloth = await dbAsync.getClothById(req.params.id);
+    const cloth = await dbAsync.getClothById(req.params.id, req.user.id);
     if (!cloth) {
       return res.status(404).json({ success: false, error: '衣物不存在' });
     }
     const wearResult = await dbAsync.recordWear(req.params.id, {
+      user_id: req.user.id,
       worn_at: req.body.worn_at,
       occasion: req.body.occasion,
       weather: req.body.weather,
       note: req.body.note
     });
-    const updated = await dbAsync.getClothById(req.params.id);
+    const updated = await dbAsync.getClothById(req.params.id, req.user.id);
     res.json({
       success: true,
       data: {
@@ -443,13 +469,14 @@ router.post('/clothes/:id/wear', async (req, res) => {
 
 router.get('/clothes/:id/wear-logs', async (req, res) => {
   try {
-    const cloth = await dbAsync.getClothById(req.params.id);
+    const cloth = await dbAsync.getClothById(req.params.id, req.user.id);
     if (!cloth) {
       return res.status(404).json({ success: false, error: '衣物不存在' });
     }
 
     const logs = await dbAsync.getWearLogs({
       clothId: req.params.id,
+      userId: req.user.id,
       limit: req.query.limit
     });
     res.json({ success: true, data: logs });

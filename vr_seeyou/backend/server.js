@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 
+const authRouter = require('./routes/auth');
 const clothesRouter = require('./routes/clothes');
 const { UPLOAD_DIR, ensureUploadDirs } = require('./services/uploadService');
 
@@ -18,6 +19,7 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+app.use('/api', authRouter);
 app.use('/api', clothesRouter);
 
 app.use((error, req, res, next) => {
@@ -30,7 +32,13 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`📍 监听地址: http://0.0.0.0:${PORT}`);
   console.log(`📁 上传目录: ${UPLOAD_DIR}`);
   console.log(`🤖 AI模式: ${process.env.MOCK_AI === 'true' ? '模拟模式（无需API Key）' : '真实API模式'}`);
+  if (!process.env.JWT_SECRET) {
+    console.warn('⚠️ JWT_SECRET 未配置，当前使用开发默认值，请勿用于生产环境');
+  }
   console.log('\nAPI端点:');
+  console.log('  POST /api/auth/register     - 注册用户');
+  console.log('  POST /api/auth/login        - 登录用户');
+  console.log('  GET  /api/auth/me           - 获取当前用户');
   console.log('  POST /api/clothes/recognize  - 上传并识别衣物（不入库）');
   console.log('  POST /api/clothes            - 确认保存衣物');
   console.log('  POST /api/clothes/upload     - 旧版上传识别并保存');

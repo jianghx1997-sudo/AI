@@ -1,6 +1,7 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
+const bcrypt = require('bcryptjs');
 
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_PATH = path.join(DATA_DIR, 'wardrobe.db');
@@ -19,12 +20,80 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
   }
 });
 
+function run(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.run(sql, params, function (err) {
+      if (err) return reject(err);
+      resolve(this);
+    });
+  });
+}
+
+function get(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.get(sql, params, (err, row) => {
+      if (err) return reject(err);
+      resolve(row || null);
+    });
+  });
+}
+
+function all(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.all(sql, params, (err, rows) => {
+      if (err) return reject(err);
+      resolve(rows || []);
+    });
+  });
+}
+
+async function tableHasColumn(tableName, columnName) {
+  const columns = await all(`PRAGMA table_info(${tableName})`);
+  return columns.some(column => column.name === columnName);
+}
+
+async function ensureColumn(tableName, columnName, definition) {
+  if (await tableHasColumn(tableName, columnName)) return;
+  await run(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+}
+
+function sanitizeUser(row) {
+  if (!row) return null;
+  const { password_hash, ...safeUser } = row;
+  return safeUser;
+}
+
+function isDefaultDemoPassword() {
+  return !process.env.DEMO_USER_PASSWORD;
+}
+
 // 初始化表
+function initUsersTable() {
+  return new Promise((resolve, reject) => {
+    db.run(`
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        display_name TEXT,
+        avatar_url TEXT,
+        role TEXT DEFAULT 'user',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `, (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}
+
 function initTable() {
   return new Promise((resolve, reject) => {
     db.run(`
       CREATE TABLE IF NOT EXISTS clothes (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
         name TEXT NOT NULL,
         image_path TEXT NOT NULL,
         brand TEXT,
@@ -57,6 +126,7 @@ function initRecommendationTables() {
     db.run(`
       CREATE TABLE IF NOT EXISTS recommendation_logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
         outfit_name TEXT,
         occasion TEXT,
         weather TEXT,
@@ -78,6 +148,7 @@ function initWearLogTables() {
     db.run(`
       CREATE TABLE IF NOT EXISTS wear_logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
         cloth_id INTEGER NOT NULL,
         worn_at TEXT NOT NULL,
         occasion TEXT,
@@ -90,6 +161,52 @@ function initWearLogTables() {
       else resolve();
     });
   });
+}
+
+async function ensureUserColumns() {
+  await ensureColumn('clothes', 'user_id', 'INTEGER');
+  await ensureColumn('wear_logs', 'user_id', 'INTEGER');
+  await ensureColumn('recommendation_logs', 'user_id', 'INTEGER');
+}
+
+async function ensureDefaultUser() {
+  const existing = await get('SELECT * FROM users WHERE username = ?', ['demo']);
+  if (existing) {
+    if (process.env.DEMO_USER_PASSWORD) {
+      const matches = await bcrypt.compare(process.env.DEMO_USER_PASSWORD, existing.password_hash);
+      if (!matches) {
+        const passwordHash = await bcrypt.hash(process.env.DEMO_USER_PASSWORD, 10);
+        await run('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?', [
+          passwordHash,
+          new Date().toISOString(),
+          existing.id
+        ]);
+        return get('SELECT * FROM users WHERE id = ?', [existing.id]);
+      }
+    }
+    return existing;
+  }
+
+  const now = new Date().toISOString();
+  const demoPassword = process.env.DEMO_USER_PASSWORD || 'demo123456';
+  const passwordHash = await bcrypt.hash(demoPassword, 10);
+  const result = await run(
+    `INSERT INTO users (username, password_hash, display_name, role, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    ['demo', passwordHash, '默认用户', 'user', now, now]
+  );
+
+  if (isDefaultDemoPassword()) {
+    console.warn('⚠️ DEMO_USER_PASSWORD 未配置，默认 demo 密码为 demo123456，仅适合本地开发');
+  }
+
+  return get('SELECT * FROM users WHERE id = ?', [result.lastID]);
+}
+
+async function assignLegacyRowsToUser(userId) {
+  await run('UPDATE clothes SET user_id = ? WHERE user_id IS NULL', [userId]);
+  await run('UPDATE wear_logs SET user_id = ? WHERE user_id IS NULL', [userId]);
+  await run('UPDATE recommendation_logs SET user_id = ? WHERE user_id IS NULL', [userId]);
 }
 
 // 从 JSON 迁移已有数据
@@ -165,22 +282,80 @@ async function migrateFromJson() {
 
 // 封装数据库操作
 const dbAsync = {
+  createUser: ({ username, password_hash, display_name, avatar_url, role = 'user' }) => {
+    return new Promise((resolve, reject) => {
+      const now = new Date().toISOString();
+      db.run(
+        `INSERT INTO users (username, password_hash, display_name, avatar_url, role, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [username, password_hash, display_name || username, avatar_url || null, role, now, now],
+        function (err) {
+          if (err) return reject(err);
+          resolve({
+            id: this.lastID,
+            username,
+            display_name: display_name || username,
+            avatar_url: avatar_url || null,
+            role,
+            created_at: now,
+            updated_at: now
+          });
+        }
+      );
+    });
+  },
+
+  getUserByUsername: (username) => {
+    return get('SELECT * FROM users WHERE username = ?', [username]);
+  },
+
+  getUserById: async (id) => {
+    const user = await get('SELECT * FROM users WHERE id = ?', [parseInt(id)]);
+    return sanitizeUser(user);
+  },
+
+  getUserWithPasswordById: (id) => {
+    return get('SELECT * FROM users WHERE id = ?', [parseInt(id)]);
+  },
+
+  updateUser: (id, updates) => {
+    return new Promise((resolve, reject) => {
+      const allowed = ['display_name', 'avatar_url'];
+      const keys = Object.keys(updates).filter(key => allowed.includes(key));
+      if (keys.length === 0) return resolve(null);
+
+      const sets = keys.map(key => `${key} = ?`).join(', ');
+      const values = keys.map(key => updates[key]);
+      values.push(new Date().toISOString());
+      values.push(parseInt(id));
+
+      db.run(
+        `UPDATE users SET ${sets}, updated_at = ? WHERE id = ?`,
+        values,
+        function (err) {
+          if (err) return reject(err);
+          resolve({ updated: this.changes > 0 });
+        }
+      );
+    });
+  },
+
   // 添加衣物
   addCloth: (cloth) => {
     return new Promise((resolve, reject) => {
       const now = new Date().toISOString();
       const {
         name, image_path, brand, purchase_date, category, color, season,
-        material, style, occasion, fit, tags, confidence, source
+        material, style, occasion, fit, tags, confidence, source, user_id
       } = cloth;
 
       db.run(
         `INSERT INTO clothes (
-          name, image_path, brand, purchase_date, category, color, season,
+          user_id, name, image_path, brand, purchase_date, category, color, season,
           material, style, occasion, fit, tags, confidence, source, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          name, image_path, brand || null, purchase_date || null,
+          user_id || null, name, image_path, brand || null, purchase_date || null,
           category || '上衣', color || null, season || null,
           material || null, style || null, occasion || '休闲',
           fit || '标准', tags || null, confidence || null,
@@ -200,6 +375,10 @@ const dbAsync = {
       let sql = 'SELECT * FROM clothes WHERE 1=1';
       const params = [];
 
+      if (filters.userId) {
+        sql += ' AND user_id = ?';
+        params.push(parseInt(filters.userId));
+      }
       if (filters.category) {
         sql += ' AND category = ?';
         params.push(filters.category);
@@ -246,9 +425,15 @@ const dbAsync = {
   },
 
   // 根据ID获取衣物
-  getClothById: (id) => {
+  getClothById: (id, userId) => {
     return new Promise((resolve, reject) => {
-      db.get('SELECT * FROM clothes WHERE id = ?', [parseInt(id)], (err, row) => {
+      const params = [parseInt(id)];
+      let sql = 'SELECT * FROM clothes WHERE id = ?';
+      if (userId) {
+        sql += ' AND user_id = ?';
+        params.push(parseInt(userId));
+      }
+      db.get(sql, params, (err, row) => {
         if (err) return reject(err);
         resolve(row || null);
       });
@@ -256,7 +441,7 @@ const dbAsync = {
   },
 
   // 更新衣物
-  updateCloth: (id, updates) => {
+  updateCloth: (id, updates, userId) => {
     return new Promise((resolve, reject) => {
       const allowed = [
         'name', 'image_path', 'brand', 'purchase_date', 'category', 'color',
@@ -269,9 +454,10 @@ const dbAsync = {
       const values = keys.map(k => updates[k]);
       values.push(new Date().toISOString());
       values.push(parseInt(id));
+      if (userId) values.push(parseInt(userId));
 
       db.run(
-        `UPDATE clothes SET ${sets}, updated_at = ? WHERE id = ?`,
+        `UPDATE clothes SET ${sets}, updated_at = ? WHERE id = ?${userId ? ' AND user_id = ?' : ''}`,
         values,
         function (err) {
           if (err) return reject(err);
@@ -282,9 +468,15 @@ const dbAsync = {
   },
 
   // 删除衣物
-  deleteCloth: (id) => {
+  deleteCloth: (id, userId) => {
     return new Promise((resolve, reject) => {
-      db.run('DELETE FROM clothes WHERE id = ?', [parseInt(id)], function (err) {
+      const params = [parseInt(id)];
+      let sql = 'DELETE FROM clothes WHERE id = ?';
+      if (userId) {
+        sql += ' AND user_id = ?';
+        params.push(parseInt(userId));
+      }
+      db.run(sql, params, function (err) {
         if (err) return reject(err);
         resolve({ deleted: this.changes > 0 });
       });
@@ -292,10 +484,18 @@ const dbAsync = {
   },
 
   // 获取分类统计
-  getCategoryStats: () => {
+  getCategoryStats: (userId) => {
     return new Promise((resolve, reject) => {
+      const params = [];
+      let sql = 'SELECT category, COUNT(*) as count FROM clothes WHERE 1=1';
+      if (userId) {
+        sql += ' AND user_id = ?';
+        params.push(parseInt(userId));
+      }
+      sql += ' GROUP BY category';
       db.all(
-        'SELECT category, COUNT(*) as count FROM clothes GROUP BY category',
+        sql,
+        params,
         (err, rows) => {
           if (err) return reject(err);
           resolve(rows.map(r => ({ category: r.category, count: r.count })));
@@ -305,11 +505,17 @@ const dbAsync = {
   },
 
   // 切换收藏状态
-  toggleFavorite: (id) => {
+  toggleFavorite: (id, userId) => {
     return new Promise((resolve, reject) => {
+      const params = [new Date().toISOString(), parseInt(id)];
+      let sql = 'UPDATE clothes SET is_favorite = NOT is_favorite, updated_at = ? WHERE id = ?';
+      if (userId) {
+        sql += ' AND user_id = ?';
+        params.push(parseInt(userId));
+      }
       db.run(
-        'UPDATE clothes SET is_favorite = NOT is_favorite, updated_at = ? WHERE id = ?',
-        [new Date().toISOString(), parseInt(id)],
+        sql,
+        params,
         function (err) {
           if (err) return reject(err);
           resolve({ updated: this.changes > 0 });
@@ -323,13 +529,15 @@ const dbAsync = {
     return new Promise((resolve, reject) => {
       const now = new Date().toISOString();
       const clothId = parseInt(id);
+      const userId = details.user_id ? parseInt(details.user_id) : null;
 
       db.serialize(() => {
         db.run('BEGIN TRANSACTION');
         db.run(
-          `INSERT INTO wear_logs (cloth_id, worn_at, occasion, weather, note, created_at)
-           VALUES (?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO wear_logs (user_id, cloth_id, worn_at, occasion, weather, note, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
           [
+            userId,
             clothId,
             details.worn_at || now,
             details.occasion || null,
@@ -345,8 +553,8 @@ const dbAsync = {
 
             const wearLogId = this.lastID;
             db.run(
-              'UPDATE clothes SET wear_count = wear_count + 1, last_worn = ?, updated_at = ? WHERE id = ?',
-              [details.worn_at || now, now, clothId],
+              `UPDATE clothes SET wear_count = wear_count + 1, last_worn = ?, updated_at = ? WHERE id = ?${userId ? ' AND user_id = ?' : ''}`,
+              userId ? [details.worn_at || now, now, clothId, userId] : [details.worn_at || now, now, clothId],
               function (updateErr) {
                 if (updateErr) {
                   db.run('ROLLBACK');
@@ -360,6 +568,7 @@ const dbAsync = {
                     updated: updateChanges > 0,
                     wear_log: {
                       id: wearLogId,
+                      user_id: userId,
                       cloth_id: clothId,
                       worn_at: details.worn_at || now,
                       occasion: details.occasion || null,
@@ -377,7 +586,7 @@ const dbAsync = {
     });
   },
 
-  getWearLogs: ({ clothId, limit = 20 } = {}) => {
+  getWearLogs: ({ clothId, userId, limit = 20 } = {}) => {
     return new Promise((resolve, reject) => {
       const params = [];
       let sql = `
@@ -390,6 +599,10 @@ const dbAsync = {
       if (clothId) {
         sql += ' AND wear_logs.cloth_id = ?';
         params.push(parseInt(clothId));
+      }
+      if (userId) {
+        sql += ' AND wear_logs.user_id = ?';
+        params.push(parseInt(userId));
       }
 
       sql += ' ORDER BY wear_logs.worn_at DESC, wear_logs.id DESC LIMIT ?';
@@ -408,9 +621,10 @@ const dbAsync = {
       const itemIds = Array.isArray(log.item_ids) ? JSON.stringify(log.item_ids) : (log.item_ids || '[]');
       db.run(
         `INSERT INTO recommendation_logs (
-          outfit_name, occasion, weather, temperature, item_ids, feedback, note, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          user_id, outfit_name, occasion, weather, temperature, item_ids, feedback, note, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
+          log.user_id || null,
           log.outfit_name || null,
           log.occasion || null,
           log.weather || null,
@@ -428,14 +642,19 @@ const dbAsync = {
     });
   },
 
-  getRecommendationLogs: ({ limit = 80 } = {}) => {
+  getRecommendationLogs: ({ userId, limit = 80 } = {}) => {
     return new Promise((resolve, reject) => {
+      const params = [];
+      let sql = 'SELECT * FROM recommendation_logs WHERE 1=1';
+      if (userId) {
+        sql += ' AND user_id = ?';
+        params.push(parseInt(userId));
+      }
+      sql += ' ORDER BY created_at DESC, id DESC LIMIT ?';
+      params.push(Number(limit) || 80);
       db.all(
-        `SELECT *
-         FROM recommendation_logs
-         ORDER BY created_at DESC, id DESC
-         LIMIT ?`,
-        [Number(limit) || 80],
+        sql,
+        params,
         (err, rows) => {
           if (err) return reject(err);
           resolve(rows || []);
@@ -448,10 +667,14 @@ const dbAsync = {
 // 启动时初始化
 (async () => {
   try {
+    await initUsersTable();
     await initTable();
     await initRecommendationTables();
     await initWearLogTables();
+    await ensureUserColumns();
+    const demoUser = await ensureDefaultUser();
     await migrateFromJson();
+    await assignLegacyRowsToUser(demoUser.id);
     const count = await new Promise((resolve, reject) => {
       db.get('SELECT COUNT(*) as count FROM clothes', (err, row) => {
         if (err) reject(err);

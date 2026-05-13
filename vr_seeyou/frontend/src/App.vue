@@ -6,7 +6,7 @@
       </keep-alive>
     </router-view>
 
-    <van-tabbar v-model="activeTab" route fixed placeholder>
+    <van-tabbar v-if="!route.meta.hideTabbar" v-model="activeTab" route fixed placeholder>
       <van-tabbar-item to="/" icon="home-o">首页</van-tabbar-item>
       <van-tabbar-item to="/upload" icon="photograph">添加</van-tabbar-item>
       <van-tabbar-item to="/recommend" icon="bulb-o">推荐</van-tabbar-item>

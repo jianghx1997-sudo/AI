@@ -97,7 +97,7 @@
             </div>
             <div class="score-pill" v-if="outfit.score !== undefined">
               <span>{{ scorePercent(outfit.score) }}</span>
-              <small>匹配</small>
+              <small>{{ outfit.ai_review ? '综合' : '匹配' }}</small>
             </div>
           </div>
 
@@ -149,6 +149,68 @@
                 <span>{{ entry.label }}</span>
                 <strong>{{ entry.value }}%</strong>
               </div>
+            </div>
+
+            <div class="ai-review-card" :class="aiReviewClass(outfit)" v-if="showAiReview(outfit)">
+              <div class="ai-review-head">
+                <div>
+                  <div class="ai-review-title">
+                    <van-icon name="chat-o" />
+                    AI顾问评价
+                  </div>
+                  <p>{{ aiReviewSummary(outfit) }}</p>
+                </div>
+                <span>{{ aiReviewStatusLabel(outfit) }}</span>
+              </div>
+
+              <div class="ai-score-row" v-if="outfit.ai_review">
+                <div>
+                  <span>综合</span>
+                  <strong>{{ scorePercent(outfit.hybrid_score) }}</strong>
+                </div>
+                <div>
+                  <span>规则</span>
+                  <strong>{{ scorePercent(outfit.rule_score) }}</strong>
+                </div>
+                <div>
+                  <span>AI</span>
+                  <strong>{{ scorePercent(outfit.ai_review.overall_score) }}</strong>
+                </div>
+              </div>
+
+              <details class="ai-review-detail" v-if="outfit.ai_review">
+                <summary>查看分项建议</summary>
+
+                <div class="ai-dimensions" v-if="aiDimensionEntries(outfit).length">
+                  <div class="ai-dimension" v-for="entry in aiDimensionEntries(outfit)" :key="entry.key">
+                    <span>{{ entry.label }}</span>
+                    <strong>{{ entry.value }}%</strong>
+                  </div>
+                </div>
+
+                <div class="ai-list-block" v-if="outfit.ai_review.strengths?.length">
+                  <div class="ai-list-title">优点</div>
+                  <div class="ai-list-item" v-for="item in outfit.ai_review.strengths" :key="item">{{ item }}</div>
+                </div>
+
+                <div class="ai-list-block risk" v-if="outfit.ai_review.risks?.length">
+                  <div class="ai-list-title">风险</div>
+                  <div class="ai-list-item" v-for="item in outfit.ai_review.risks" :key="item">{{ item }}</div>
+                </div>
+
+                <div class="ai-list-block" v-if="outfit.ai_review.suggestions?.length">
+                  <div class="ai-list-title">调整建议</div>
+                  <div class="ai-list-item" v-for="item in outfit.ai_review.suggestions" :key="item">{{ item }}</div>
+                </div>
+
+                <div class="ai-gap-opinion" v-if="outfit.ai_review.purchase_gap_opinion?.summary">
+                  <div class="ai-list-title">缺口判断</div>
+                  <p>{{ outfit.ai_review.purchase_gap_opinion.summary }}</p>
+                  <div class="ai-gap-tags" v-if="outfit.ai_review.purchase_gap_opinion.recommended_items?.length">
+                    <span v-for="item in outfit.ai_review.purchase_gap_opinion.recommended_items" :key="item">{{ item }}</span>
+                  </div>
+                </div>
+              </details>
             </div>
           </div>
 
@@ -227,6 +289,15 @@ const breakdownLabels = {
   style: '风格',
   preference: '偏好',
   completeness: '完整度'
+}
+
+const aiDimensionLabels = {
+  weather_comfort: '天气舒适',
+  occasion_match: '场景匹配',
+  completeness: '完整度',
+  color_harmony: '配色',
+  style_consistency: '风格',
+  practicality: '实穿性'
 }
 
 const feedbackActions = [
@@ -325,13 +396,51 @@ const breakdownEntries = (outfit) => {
     }))
 }
 
+const showAiReview = (outfit) => {
+  return Boolean(outfit?.ai_review || outfit?.ai_review_status === 'unavailable' || outfit?.ai_review_status === 'conflict_fallback')
+}
+
+const aiReviewStatusLabel = (outfit) => {
+  const labels = {
+    reviewed: '已评审',
+    cached: '已评审',
+    conflict_fallback: '已校准',
+    unavailable: '暂不可用'
+  }
+  return labels[outfit?.ai_review_status] || '待评审'
+}
+
+const aiReviewClass = (outfit) => {
+  return {
+    unavailable: outfit?.ai_review_status === 'unavailable',
+    conflict: outfit?.ai_review_status === 'conflict_fallback'
+  }
+}
+
+const aiReviewSummary = (outfit) => {
+  if (outfit?.ai_review?.summary) return outfit.ai_review.summary
+  if (outfit?.ai_review_status === 'unavailable') return 'AI评价暂不可用，当前已使用规则推荐结果。'
+  return 'AI评价已按规则硬约束校准。'
+}
+
+const aiDimensionEntries = (outfit) => {
+  return Object.entries(outfit?.ai_review?.dimension_scores || {})
+    .filter(([key]) => aiDimensionLabels[key])
+    .map(([key, value]) => ({
+      key,
+      label: aiDimensionLabels[key],
+      value: Math.max(0, Math.min(100, Math.round(Number(value) || 0)))
+    }))
+}
+
 const hasOutfitInsights = (outfit) => {
   return Boolean(
     outfit?.constraint_warnings?.length ||
     outfit?.comfort_notes?.length ||
     outfit?.style_notes?.length ||
     outfit?.missing_items?.length ||
-    breakdownEntries(outfit).length
+    breakdownEntries(outfit).length ||
+    showAiReview(outfit)
   )
 }
 
@@ -456,7 +565,8 @@ const loadRecommendations = async () => {
       weather: manualWeather.value,
       temperature: manualTemperature.value,
       city: city.value,
-      useWeather: useLiveWeather.value
+      useWeather: useLiveWeather.value,
+      aiReview: true
     })
     if (res.success) {
       weather.value = res.data.weather
@@ -978,6 +1088,155 @@ onMounted(() => {
 .breakdown-item strong {
   font-size: 13px;
   color: var(--sw-text);
+}
+
+.ai-review-card {
+  border: 1px solid rgba(47, 143, 123, 0.2);
+  border-radius: var(--sw-radius);
+  background: linear-gradient(180deg, rgba(232, 246, 242, 0.72), rgba(255, 255, 255, 0.88));
+  padding: 11px;
+}
+
+.ai-review-card.unavailable {
+  border-color: var(--sw-border);
+  background: var(--sw-surface-soft);
+}
+
+.ai-review-card.conflict {
+  border-color: rgba(223, 121, 87, 0.45);
+  background: rgba(255, 246, 242, 0.72);
+}
+
+.ai-review-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ai-review-head > div {
+  min-width: 0;
+}
+
+.ai-review-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--sw-primary);
+  font-size: 13px;
+  font-weight: 750;
+  margin-bottom: 5px;
+}
+
+.ai-review-head p {
+  margin: 0;
+  color: var(--sw-text);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.ai-review-head > span {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  border-radius: 999px;
+  padding: 4px 7px;
+  background: var(--sw-surface);
+  color: var(--sw-text-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.ai-score-row,
+.ai-dimensions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.ai-score-row div,
+.ai-dimension {
+  min-width: 0;
+  border-radius: var(--sw-radius);
+  background: rgba(255, 255, 255, 0.72);
+  padding: 8px 6px;
+  text-align: center;
+}
+
+.ai-score-row span,
+.ai-dimension span {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--sw-text-muted);
+  font-size: 11px;
+}
+
+.ai-score-row strong,
+.ai-dimension strong {
+  color: var(--sw-text);
+  font-size: 13px;
+}
+
+.ai-review-detail {
+  margin-top: 9px;
+}
+
+.ai-review-detail summary {
+  cursor: pointer;
+  color: var(--sw-primary);
+  font-size: 12px;
+  font-weight: 650;
+  list-style: none;
+}
+
+.ai-review-detail summary::-webkit-details-marker {
+  display: none;
+}
+
+.ai-list-block,
+.ai-gap-opinion {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(47, 143, 123, 0.14);
+}
+
+.ai-list-title {
+  color: var(--sw-text);
+  font-size: 12px;
+  font-weight: 750;
+  margin-bottom: 5px;
+}
+
+.ai-list-item,
+.ai-gap-opinion p {
+  margin: 0;
+  color: var(--sw-text-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ai-list-item + .ai-list-item {
+  margin-top: 4px;
+}
+
+.ai-list-block.risk .ai-list-title {
+  color: #9b4a31;
+}
+
+.ai-gap-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.ai-gap-tags span {
+  max-width: 100%;
+  border-radius: 999px;
+  background: var(--sw-surface);
+  color: var(--sw-text-muted);
+  padding: 5px 8px;
+  font-size: 11px;
+  line-height: 1.2;
 }
 
 .feedback-actions {

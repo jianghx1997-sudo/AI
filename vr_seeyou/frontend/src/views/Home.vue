@@ -6,9 +6,15 @@
         <h1>{{ weatherTitle }}</h1>
         <p>{{ weatherSubtitle }}</p>
       </div>
-      <van-button type="primary" round size="small" @click="$router.push('/recommend')">
-        今日搭配
-      </van-button>
+      <div class="today-actions">
+        <button class="profile-chip" @click="$router.push('/profile')">
+          <van-icon name="manager-o" />
+          <span>{{ authStore.user?.display_name || '我' }}</span>
+        </button>
+        <van-button type="primary" round size="small" @click="$router.push('/recommend')">
+          今日搭配
+        </van-button>
+      </div>
     </section>
 
     <section class="quick-actions">
@@ -97,7 +103,9 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { getCategoryStats, getClothes, getCurrentWeather, getWardrobeAnalysis } from '@/api/clothes'
+import { useAuthStore } from '@/stores/auth'
 
+const authStore = useAuthStore()
 const stats = ref([])
 const recentClothes = ref([])
 const analysis = ref(null)
@@ -159,6 +167,35 @@ onMounted(async () => {
   gap: 16px;
   padding: 18px;
   margin-bottom: 14px;
+}
+
+.today-actions {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
+.profile-chip {
+  max-width: 112px;
+  height: 30px;
+  border: 1px solid var(--sw-border);
+  border-radius: 999px;
+  background: var(--sw-surface);
+  color: var(--sw-primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 9px;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.profile-chip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .eyebrow {

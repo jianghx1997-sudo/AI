@@ -1,9 +1,10 @@
 import axios from 'axios'
+import { useAuthStore } from '@/stores/auth'
 
 // 创建 axios 实例
 const request = axios.create({
   baseURL: '', // 使用相对路径，通过 Vite proxy 转发
-  timeout: 90000, // 真实视觉模型识别可能需要较长时间
+  timeout: 180000, // 真实视觉模型识别/AI评价可能需要较长时间
   headers: {
     'Content-Type': 'application/json',
     'Cache-Control': 'no-cache'
@@ -13,6 +14,10 @@ const request = axios.create({
 // 请求拦截器
 request.interceptors.request.use(
   (config) => {
+    const authStore = useAuthStore()
+    if (authStore.token) {
+      config.headers.Authorization = `Bearer ${authStore.token}`
+    }
     // 上传文件时使用 multipart/form-data
     if (config.data instanceof FormData) {
       config.headers['Content-Type'] = 'multipart/form-data'
@@ -35,6 +40,13 @@ request.interceptors.response.use(
     if (error.response) {
       // 服务器返回错误
       const msg = error.response.data?.error || `服务器错误 (${error.response.status})`
+      if (error.response.status === 401) {
+        const authStore = useAuthStore()
+        authStore.clearSession()
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login'
+        }
+      }
       return Promise.reject(new Error(msg))
     } else if (error.request) {
       // 请求未收到响应
