@@ -5,6 +5,7 @@
         <div class="eyebrow">今日衣橱</div>
         <h1>{{ weatherTitle }}</h1>
         <p>{{ weatherSubtitle }}</p>
+        <div class="weather-status" v-if="weatherStatus">{{ weatherStatus }}</div>
       </div>
       <div class="today-actions">
         <button class="profile-chip" @click="$router.push('/profile')">
@@ -102,7 +103,14 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { getCategoryStats, getClothes, getCurrentWeather, getWardrobeAnalysis } from '@/api/clothes'
+import {
+  getCategoryStats,
+  getClothes,
+  getCurrentWeather,
+  getWardrobeAnalysis,
+  locateByIp,
+  reverseGeocode
+} from '@/api/clothes'
 import { useAuthStore } from '@/stores/auth'
 import AuthImage from '@/components/AuthImage.vue'
 
@@ -112,6 +120,7 @@ const recentClothes = ref([])
 const analysis = ref(null)
 const currentWeather = ref(null)
 const loading = ref(true)
+const weatherStatus = ref('')
 
 const weatherTitle = computed(() => {
   if (currentWeather.value?.available) {
@@ -127,13 +136,87 @@ const weatherSubtitle = computed(() => {
   return `${analysis.value?.total || 0} 件衣物已整理`
 })
 
-onMounted(async () => {
+const getBrowserPosition = () => {
+  if (!navigator.geolocation || !window.isSecureContext) {
+    return Promise.reject(new Error('浏览器定位不可用'))
+  }
+
+  const positionPromise = new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 300000
+    })
+  })
+
+  const timeoutPromise = new Promise((_, reject) => {
+    window.setTimeout(() => reject(new Error('GPS定位超时')), 12000)
+  })
+
+  return Promise.race([positionPromise, timeoutPromise])
+}
+
+const loadWeatherByCity = async (cityCode, statusText) => {
+  if (!cityCode) return false
+  const res = await getCurrentWeather(cityCode)
+  if (res.success) {
+    currentWeather.value = res.data
+    weatherStatus.value = res.data?.available ? statusText : (res.data?.message || '天气暂不可用')
+    return res.data?.available === true
+  }
+  return false
+}
+
+const loadDefaultWeather = async () => {
   try {
-    const [statsRes, clothesRes, analysisRes, weatherRes] = await Promise.allSettled([
+    const res = await getCurrentWeather()
+    if (res.success) {
+      currentWeather.value = res.data
+      weatherStatus.value = res.data?.available ? '使用默认城市天气' : (res.data?.message || '天气暂不可用')
+      return
+    }
+  } catch (error) {
+    // 首页天气失败不影响衣橱概览展示
+  }
+  weatherStatus.value = '天气暂不可用'
+}
+
+const loadHomeWeather = async () => {
+  weatherStatus.value = '正在定位天气'
+
+  try {
+    const position = await getBrowserPosition()
+    const { longitude, latitude } = position.coords
+    const res = await reverseGeocode(longitude, latitude)
+    if (res.success && res.data?.available) {
+      const cityName = res.data.city || res.data.district || res.data.province || '当前位置'
+      const ok = await loadWeatherByCity(res.data.adcode, `GPS定位：${cityName}`)
+      if (ok) return
+    }
+  } catch (error) {
+    // GPS 被拒绝、超时或不可用时继续尝试 IP 定位
+  }
+
+  try {
+    const res = await locateByIp()
+    if (res.success && res.data?.available) {
+      const cityName = res.data.city || res.data.province || '当前位置'
+      const ok = await loadWeatherByCity(res.data.adcode, `IP定位：${cityName}，可能不精确`)
+      if (ok) return
+    }
+  } catch (error) {
+    // IP 定位失败时继续使用后端默认城市
+  }
+
+  await loadDefaultWeather()
+}
+
+const loadHomeData = async () => {
+  try {
+    const [statsRes, clothesRes, analysisRes] = await Promise.allSettled([
       getCategoryStats(),
       getClothes({ _t: Date.now() }),
-      getWardrobeAnalysis(),
-      getCurrentWeather('110101')
+      getWardrobeAnalysis()
     ])
 
     if (statsRes.status === 'fulfilled' && statsRes.value.success) {
@@ -145,12 +228,14 @@ onMounted(async () => {
     if (analysisRes.status === 'fulfilled' && analysisRes.value.success) {
       analysis.value = analysisRes.value.data
     }
-    if (weatherRes.status === 'fulfilled' && weatherRes.value.success) {
-      currentWeather.value = weatherRes.value.data
-    }
   } finally {
     loading.value = false
   }
+}
+
+onMounted(() => {
+  loadHomeData()
+  loadHomeWeather()
 })
 </script>
 
@@ -210,6 +295,12 @@ onMounted(async () => {
 
 .today-card p {
   font-size: 13px;
+  color: var(--sw-text-muted);
+}
+
+.weather-status {
+  margin-top: 6px;
+  font-size: 11px;
   color: var(--sw-text-muted);
 }
 
