@@ -17,7 +17,7 @@
     <div class="detail-content" v-if="cloth">
       <!-- 大图展示 -->
       <div class="image-section">
-        <img :src="cloth.image_path" :alt="cloth.name" />
+        <img :src="getImageUrl(cloth)" :alt="cloth.name" />
         <div class="image-actions">
           <div
             class="icon-btn"
@@ -31,6 +31,15 @@
 
       <!-- 编辑模式 -->
       <div v-if="isEditing" class="edit-card surface-card">
+        <div class="edit-tools">
+          <div>
+            <strong>标签编辑</strong>
+            <p>这些字段会直接影响推荐准确度</p>
+          </div>
+          <van-button round plain size="small" :loading="reanalyzing" @click="reanalyze">
+            AI重新分析
+          </van-button>
+        </div>
         <van-field v-model="editForm.name" label="名称" placeholder="请输入名称" />
         <van-field label="类别">
           <template #input>
@@ -39,13 +48,7 @@
             </select>
           </template>
         </van-field>
-        <van-field label="颜色">
-          <template #input>
-            <select v-model="editForm.color" class="custom-select">
-              <option v-for="c in colors" :key="c" :value="c">{{ c }}</option>
-            </select>
-          </template>
-        </van-field>
+        <van-field v-model="editForm.color" label="颜色" placeholder="如：浅灰色、酒红色" />
         <van-field label="季节">
           <template #input>
             <select v-model="editForm.season" class="custom-select">
@@ -55,9 +58,17 @@
         </van-field>
         <van-field label="场合">
           <template #input>
-            <select v-model="editForm.occasion" class="custom-select">
-              <option v-for="o in occasions" :key="o" :value="o">{{ o }}</option>
-            </select>
+            <div class="multi-chips">
+              <button
+                v-for="o in occasions"
+                :key="o"
+                type="button"
+                :class="{ active: selectedOccasions.includes(o) }"
+                @click="toggleOccasion(o)"
+              >
+                {{ o }}
+              </button>
+            </div>
           </template>
         </van-field>
         <van-field label="版型">
@@ -68,7 +79,42 @@
           </template>
         </van-field>
         <van-field v-model="editForm.material" label="材质" placeholder="如：棉、羊毛" />
-        <van-field v-model="editForm.style" label="风格" placeholder="如：休闲、商务" />
+        <van-field label="风格">
+          <template #input>
+            <select v-model="editForm.style" class="custom-select">
+              <option v-for="s in styles" :key="s" :value="s">{{ s }}</option>
+            </select>
+          </template>
+        </van-field>
+        <van-field label="叠穿角色">
+          <template #input>
+            <select v-model="editForm.layering_role" class="custom-select">
+              <option v-for="item in layeringRoles" :key="item.value" :value="item.value">{{ item.label }}</option>
+            </select>
+          </template>
+        </van-field>
+        <van-field label="色系">
+          <template #input>
+            <select v-model="editForm.color_family" class="custom-select">
+              <option v-for="item in colorFamilies" :key="item.value" :value="item.value">{{ item.label }}</option>
+            </select>
+          </template>
+        </van-field>
+        <div class="rating-fields">
+          <label>
+            <span>保暖度 {{ editForm.warmth_level || 3 }}/5</span>
+            <input v-model.number="editForm.warmth_level" type="range" min="1" max="5" step="0.5" />
+          </label>
+          <label>
+            <span>透气度 {{ editForm.breathability_level || 3 }}/5</span>
+            <input v-model.number="editForm.breathability_level" type="range" min="1" max="5" step="0.5" />
+          </label>
+          <label>
+            <span>正式度 {{ editForm.formality_level || 2.5 }}/5</span>
+            <input v-model.number="editForm.formality_level" type="range" min="1" max="5" step="0.5" />
+          </label>
+        </div>
+        <van-field v-model="editForm.weather_risk" label="天气风险" placeholder="如：雨天易脏、高温偏厚" />
         <van-field v-model="editForm.brand" label="品牌" placeholder="可选" />
         <van-field v-model="editForm.tags" label="标签" placeholder="逗号分隔，如：保暖,通勤" />
         <van-field v-model="editForm.purchase_date" label="购买日期" type="date" />
@@ -110,6 +156,30 @@
           <div class="info-item">
             <span class="info-label">风格</span>
             <span class="info-value">{{ cloth.style }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">保暖度</span>
+            <span class="info-value">{{ levelLabel(cloth.warmth_level) }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">透气度</span>
+            <span class="info-value">{{ levelLabel(cloth.breathability_level) }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">正式度</span>
+            <span class="info-value">{{ levelLabel(cloth.formality_level) }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">叠穿角色</span>
+            <span class="info-value">{{ roleLabel(cloth.layering_role) }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">色系</span>
+            <span class="info-value">{{ colorFamilyLabel(cloth.color_family) }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">天气风险</span>
+            <span class="info-value">{{ cloth.weather_risk || '-' }}</span>
           </div>
           <div class="info-item">
             <span class="info-label">品牌</span>
@@ -211,34 +281,114 @@
         确定要删除「{{ cloth?.name }}」吗？<br/>此操作不可恢复
       </p>
     </van-dialog>
+
+    <van-dialog
+      v-model:show="showAiConfirm"
+      title="应用 AI 补全结果？"
+      show-cancel-button
+      confirm-button-text="应用到编辑表单"
+      cancel-button-text="先不应用"
+      @confirm="applyAiDraft"
+    >
+      <div class="ai-preview" v-if="aiDraft">
+        <div v-for="item in aiPreviewRows" :key="item.label">
+          <span>{{ item.label }}</span>
+          <strong>{{ item.value || '-' }}</strong>
+        </div>
+      </div>
+    </van-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showToast, showSuccessToast } from 'vant'
-import { getClothById, getWearLogs, updateCloth, deleteCloth, toggleFavorite, recordWear } from '@/api/clothes'
+import { getClothById, getWearLogs, updateCloth, deleteCloth, toggleFavorite, recordWear, reanalyzeCloth } from '@/api/clothes'
+import { getImageUrl } from '@/utils/images'
 
 const route = useRoute()
 const router = useRouter()
 const cloth = ref(null)
 const loading = ref(true)
 const showDeleteConfirm = ref(false)
+const showAiConfirm = ref(false)
 const isEditing = ref(false)
 const wearLogs = ref([])
+const reanalyzing = ref(false)
+const aiDraft = ref(null)
 
 const categories = ['上衣', '裤子', '裙子', '外套', '鞋子', '配饰']
-const colors = ['黑色', '白色', '灰色', '蓝色', '红色', '绿色', '黄色', '粉色', '米色', '棕色', '紫色', '橙色', '未知']
 const seasons = ['春/秋', '夏季', '冬季', '四季']
 const occasions = ['通勤', '约会', '运动', '休闲', '正式', '旅行']
 const fits = ['修身', '宽松', '标准']
+const styles = ['休闲', '商务', '运动', '正式', '街头', '简约', '优雅']
+const layeringRoles = [
+  { label: '自动判断', value: '' },
+  { label: '上衣/内搭', value: 'top' },
+  { label: '下装', value: 'bottom' },
+  { label: '外套', value: 'outer' },
+  { label: '鞋子', value: 'shoes' },
+  { label: '配饰', value: 'accessory' }
+]
+const colorFamilies = [
+  { label: '自动判断', value: '' },
+  { label: '中性色', value: 'neutral' },
+  { label: '冷色系', value: 'cool' },
+  { label: '暖色系', value: 'warm' },
+  { label: '亮点色', value: 'accent' },
+  { label: '未知', value: 'unknown' }
+]
 
 const editForm = ref({})
+const selectedOccasions = computed(() => {
+  return String(editForm.value.occasion || '')
+    .split(/[,，、/|]/)
+    .map(item => item.trim())
+    .filter(Boolean)
+})
 
-const fetchCloth = async () => {
+const normalizeSeason = (value) => {
+  if (value === '春秋') return '春/秋'
+  return seasons.includes(value) ? value : '四季'
+}
+
+const aiPreviewRows = computed(() => {
+  const draft = aiDraft.value || {}
+  return [
+    { label: '名称', value: draft.name },
+    { label: '类别', value: draft.category },
+    { label: '颜色', value: draft.color },
+    { label: '季节', value: draft.season },
+    { label: '场合', value: draft.occasion },
+    { label: '风格', value: draft.style },
+    { label: '保暖/透气/正式', value: [draft.warmth_level, draft.breathability_level, draft.formality_level].filter(Boolean).join(' / ') }
+  ]
+})
+
+const toggleOccasion = (occasion) => {
+  const next = new Set(selectedOccasions.value)
+  if (next.has(occasion)) next.delete(occasion)
+  else next.add(occasion)
+  editForm.value.occasion = Array.from(next).join(',')
+}
+
+const resetDetailState = () => {
+  loading.value = true
+  cloth.value = null
+  wearLogs.value = []
+  editForm.value = {}
+  isEditing.value = false
+  showDeleteConfirm.value = false
+  showAiConfirm.value = false
+  reanalyzing.value = false
+  aiDraft.value = null
+}
+
+const fetchCloth = async (clothId = route.params.id) => {
   try {
-    const res = await getClothById(route.params.id)
+    const res = await getClothById(clothId)
+    if (String(route.params.id) !== String(clothId)) return
     if (res.success) {
       cloth.value = res.data
     } else {
@@ -246,22 +396,34 @@ const fetchCloth = async () => {
       router.back()
     }
   } catch (error) {
+    if (String(route.params.id) !== String(clothId)) return
     showToast(error.message || '获取失败')
     router.back()
   } finally {
-    loading.value = false
+    if (String(route.params.id) === String(clothId)) {
+      loading.value = false
+    }
   }
 }
 
-const fetchWearLogs = async () => {
+const fetchWearLogs = async (clothId = route.params.id) => {
   try {
-    const res = await getWearLogs(route.params.id, 10)
+    const res = await getWearLogs(clothId, 10)
+    if (String(route.params.id) !== String(clothId)) return
     if (res.success) {
       wearLogs.value = res.data || []
     }
   } catch (error) {
     console.warn('获取穿着记录失败:', error)
   }
+}
+
+const loadCurrentCloth = async (clothId = route.params.id) => {
+  resetDetailState()
+  await Promise.all([
+    fetchCloth(clothId),
+    fetchWearLogs(clothId)
+  ])
 }
 
 const toggleEdit = () => {
@@ -273,16 +435,60 @@ const toggleEdit = () => {
     name: cloth.value.name,
     category: cloth.value.category,
     color: cloth.value.color,
-    season: cloth.value.season,
+    season: normalizeSeason(cloth.value.season),
     material: cloth.value.material,
     style: cloth.value.style,
     occasion: cloth.value.occasion || '休闲',
     fit: cloth.value.fit || '标准',
     brand: cloth.value.brand || '',
     tags: cloth.value.tags || '',
+    warmth_level: Number(cloth.value.warmth_level || 3),
+    breathability_level: Number(cloth.value.breathability_level || 3),
+    formality_level: Number(cloth.value.formality_level || 2.5),
+    layering_role: cloth.value.layering_role || '',
+    color_family: cloth.value.color_family || '',
+    weather_risk: cloth.value.weather_risk || '',
     purchase_date: cloth.value.purchase_date || ''
   }
   isEditing.value = true
+}
+
+const reanalyze = async () => {
+  reanalyzing.value = true
+  try {
+    const res = await reanalyzeCloth(route.params.id)
+    if (res.success) {
+      aiDraft.value = res.ai_result
+      showAiConfirm.value = true
+    }
+  } catch (error) {
+    showToast(error.message || 'AI重新分析失败')
+  } finally {
+    reanalyzing.value = false
+  }
+}
+
+const applyAiDraft = () => {
+  const draft = aiDraft.value || {}
+  editForm.value = {
+    ...editForm.value,
+    name: draft.name || editForm.value.name,
+    category: draft.category || editForm.value.category,
+    color: draft.color || editForm.value.color,
+    season: normalizeSeason(draft.season || editForm.value.season),
+    material: draft.material || editForm.value.material,
+    style: styles.includes(draft.style) ? draft.style : editForm.value.style,
+    occasion: draft.occasion || editForm.value.occasion,
+    fit: fits.includes(draft.fit) ? draft.fit : editForm.value.fit,
+    tags: draft.tags || editForm.value.tags,
+    warmth_level: Number(draft.warmth_level || editForm.value.warmth_level || 3),
+    breathability_level: Number(draft.breathability_level || editForm.value.breathability_level || 3),
+    formality_level: Number(draft.formality_level || editForm.value.formality_level || 2.5),
+    layering_role: draft.layering_role || editForm.value.layering_role,
+    color_family: draft.color_family || editForm.value.color_family,
+    weather_risk: draft.weather_risk || editForm.value.weather_risk
+  }
+  showToast('已应用到表单，保存后生效')
 }
 
 const saveEdit = async () => {
@@ -355,10 +561,29 @@ const sourceLabel = (source) => {
   return source || '-'
 }
 
-onMounted(() => {
-  fetchCloth()
-  fetchWearLogs()
-})
+const levelLabel = (value) => {
+  if (value === undefined || value === null || value === '') return '-'
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? `${numeric}/5` : '-'
+}
+
+const roleLabel = (value) => {
+  return layeringRoles.find(item => item.value === value)?.label || '-'
+}
+
+const colorFamilyLabel = (value) => {
+  return colorFamilies.find(item => item.value === value)?.label || '-'
+}
+
+watch(
+  () => route.params.id,
+  (clothId) => {
+    if (clothId) {
+      loadCurrentCloth(clothId)
+    }
+  },
+  { immediate: true }
+)
 </script>
 
 <style scoped>
@@ -422,6 +647,78 @@ onMounted(() => {
 .edit-card {
   overflow: hidden;
   padding: 12px 0;
+}
+
+.edit-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 16px 14px;
+  border-bottom: 1px solid var(--sw-border);
+}
+
+.edit-tools strong {
+  display: block;
+  font-size: 16px;
+  color: var(--sw-text);
+  margin-bottom: 4px;
+}
+
+.edit-tools p {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--sw-text-muted);
+}
+
+.multi-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.multi-chips button {
+  min-height: 28px;
+  padding: 5px 10px;
+  border: 1px solid var(--sw-border);
+  border-radius: 999px;
+  background: var(--sw-surface);
+  color: var(--sw-text-muted);
+  font-size: 12px;
+}
+
+.multi-chips button.active {
+  border-color: var(--sw-primary);
+  background: var(--sw-primary-soft);
+  color: var(--sw-primary);
+  font-weight: 650;
+}
+
+.rating-fields {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px;
+  border-top: 1px solid var(--sw-border);
+  border-bottom: 1px solid var(--sw-border);
+}
+
+.rating-fields label {
+  display: grid;
+  gap: 8px;
+}
+
+.rating-fields span {
+  display: flex;
+  justify-content: space-between;
+  color: var(--sw-text);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.rating-fields input {
+  width: 100%;
+  accent-color: var(--sw-primary);
 }
 
 .custom-select {
@@ -548,5 +845,33 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   padding: 100px 20px;
+}
+
+.ai-preview {
+  padding: 10px 18px 18px;
+}
+
+.ai-preview > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--sw-border);
+  font-size: 13px;
+}
+
+.ai-preview > div:last-child {
+  border-bottom: none;
+}
+
+.ai-preview span {
+  color: var(--sw-text-muted);
+  white-space: nowrap;
+}
+
+.ai-preview strong {
+  color: var(--sw-text);
+  text-align: right;
+  word-break: break-word;
 }
 </style>

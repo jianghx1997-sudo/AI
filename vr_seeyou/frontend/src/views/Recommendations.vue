@@ -264,6 +264,7 @@ import {
   reverseGeocode,
   submitRecommendationFeedback
 } from '@/api/clothes'
+import { getImageUrl } from '@/utils/images'
 
 const occasions = ['通勤', '约会', '运动', '休闲', '正式', '旅行']
 const city = ref('110101')
@@ -274,6 +275,7 @@ const weather = ref(null)
 const outfits = ref([])
 const gaps = ref([])
 const gapSuggestions = ref([])
+const recommendationSnapshotId = ref(null)
 const loading = ref(false)
 const loadingWeather = ref(false)
 const loadingLocation = ref(false)
@@ -332,12 +334,6 @@ const weatherSubtitle = computed(() => {
   }
   return '使用手动天气'
 })
-
-const getImageUrl = (item) => {
-  if (!item?.image_path) return ''
-  const separator = item.image_path.includes('?') ? '&' : '?'
-  return `${item.image_path}${separator}v=${encodeURIComponent(item.updated_at || item.created_at || Date.now())}`
-}
 
 const scorePercent = (score) => `${Math.max(0, Math.min(100, Math.round(Number(score) || 0)))}%`
 
@@ -573,6 +569,7 @@ const loadRecommendations = async () => {
       outfits.value = res.data.outfits || []
       gaps.value = res.data.gaps || []
       gapSuggestions.value = res.data.gap_suggestions || []
+      recommendationSnapshotId.value = res.data.recommendation_snapshot_id || null
     }
   } catch (error) {
     showToast(error.message || '推荐生成失败')
@@ -609,6 +606,8 @@ const submitFeedback = async (outfit, feedback, feedbackReason = '') => {
       weather: weather.value?.weather,
       temperature: weather.value?.temperature,
       item_ids: outfit.items.map(item => item.id),
+      recommendation_snapshot_id: outfit.recommendation_snapshot_id || recommendationSnapshotId.value,
+      outfit_key: outfit.snapshot_outfit_key,
       feedback,
       feedback_reason: feedbackReason,
       note: feedbackReason

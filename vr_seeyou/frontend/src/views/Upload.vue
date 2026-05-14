@@ -90,7 +90,13 @@
 
           <div class="field-block advanced-fields" v-if="showAdvanced">
             <van-field v-model="form.material" label="材质" placeholder="例如：羽绒、棉、羊毛" />
-            <van-field v-model="form.style" label="风格" placeholder="例如：休闲、商务" />
+            <van-field label="风格">
+              <template #input>
+                <select v-model="form.style" class="custom-select">
+                  <option v-for="item in styles" :key="item" :value="item">{{ item }}</option>
+                </select>
+              </template>
+            </van-field>
             <van-field label="版型">
               <template #input>
                 <select v-model="form.fit" class="custom-select">
@@ -98,6 +104,35 @@
                 </select>
               </template>
             </van-field>
+            <van-field label="叠穿角色">
+              <template #input>
+                <select v-model="form.layering_role" class="custom-select">
+                  <option v-for="item in layeringRoles" :key="item.value" :value="item.value">{{ item.label }}</option>
+                </select>
+              </template>
+            </van-field>
+            <van-field label="色系">
+              <template #input>
+                <select v-model="form.color_family" class="custom-select">
+                  <option v-for="item in colorFamilies" :key="item.value" :value="item.value">{{ item.label }}</option>
+                </select>
+              </template>
+            </van-field>
+            <div class="rating-fields">
+              <label>
+                <span>保暖度 {{ form.warmth_level }}/5</span>
+                <input v-model.number="form.warmth_level" type="range" min="1" max="5" step="0.5" />
+              </label>
+              <label>
+                <span>透气度 {{ form.breathability_level }}/5</span>
+                <input v-model.number="form.breathability_level" type="range" min="1" max="5" step="0.5" />
+              </label>
+              <label>
+                <span>正式度 {{ form.formality_level }}/5</span>
+                <input v-model.number="form.formality_level" type="range" min="1" max="5" step="0.5" />
+              </label>
+            </div>
+            <van-field v-model="form.weather_risk" label="天气风险" placeholder="例如：雨天易脏、高温偏厚" />
             <van-field v-model="form.tags" label="标签" placeholder="逗号分隔，如：保暖,通勤" />
           </div>
 
@@ -174,6 +209,23 @@ const categories = ['上衣', '裤子', '裙子', '外套', '鞋子', '配饰']
 const seasons = ['春/秋', '夏季', '冬季', '四季']
 const occasions = ['通勤', '约会', '运动', '休闲', '正式', '旅行']
 const fits = ['修身', '宽松', '标准']
+const styles = ['休闲', '商务', '运动', '正式', '街头', '简约', '优雅']
+const layeringRoles = [
+  { label: '自动判断', value: '' },
+  { label: '上衣/内搭', value: 'top' },
+  { label: '下装', value: 'bottom' },
+  { label: '外套', value: 'outer' },
+  { label: '鞋子', value: 'shoes' },
+  { label: '配饰', value: 'accessory' }
+]
+const colorFamilies = [
+  { label: '自动判断', value: '' },
+  { label: '中性色', value: 'neutral' },
+  { label: '冷色系', value: 'cool' },
+  { label: '暖色系', value: 'warm' },
+  { label: '亮点色', value: 'accent' },
+  { label: '未知', value: 'unknown' }
+]
 
 const emptyForm = () => ({
   name: '',
@@ -184,6 +236,12 @@ const emptyForm = () => ({
   style: '休闲',
   occasion: '休闲',
   fit: '标准',
+  warmth_level: 3,
+  breathability_level: 3,
+  formality_level: 2.5,
+  layering_role: '',
+  color_family: '',
+  weather_risk: '',
   tags: '',
   confidence: 0,
   source: 'manual'
@@ -214,9 +272,15 @@ const fillFormFromResult = (result) => {
     color: result?.color || fallback.color,
     season: seasons.includes(result?.season) ? result.season : fallback.season,
     material: result?.material || fallback.material,
-    style: result?.style || fallback.style,
+    style: styles.includes(result?.style) ? result.style : fallback.style,
     occasion: occasions.includes(result?.occasion) ? result.occasion : fallback.occasion,
     fit: fits.includes(result?.fit) ? result.fit : fallback.fit,
+    warmth_level: Number(result?.warmth_level || fallback.warmth_level),
+    breathability_level: Number(result?.breathability_level || fallback.breathability_level),
+    formality_level: Number(result?.formality_level || fallback.formality_level),
+    layering_role: layeringRoles.some(item => item.value === result?.layering_role) ? result.layering_role : fallback.layering_role,
+    color_family: colorFamilies.some(item => item.value === result?.color_family) ? result.color_family : fallback.color_family,
+    weather_risk: result?.weather_risk || fallback.weather_risk,
     tags: result?.tags || fallback.tags,
     confidence: Number(result?.confidence || 0),
     source: result?.raw?.source || result?.source || fallback.source
@@ -501,6 +565,32 @@ const reset = () => {
 
 .advanced-fields {
   margin-top: 0;
+}
+
+.rating-fields {
+  display: grid;
+  gap: 12px;
+  padding: 14px 12px;
+  border-top: 1px solid var(--sw-border);
+}
+
+.rating-fields label {
+  display: grid;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--sw-text-muted);
+}
+
+.rating-fields span {
+  display: flex;
+  justify-content: space-between;
+  color: var(--sw-text);
+  font-weight: 650;
+}
+
+.rating-fields input {
+  width: 100%;
+  accent-color: var(--sw-primary);
 }
 
 .result-actions {

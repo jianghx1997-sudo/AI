@@ -108,6 +108,7 @@ import { computed, onActivated, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { showToast } from 'vant'
 import { getClothes } from '@/api/clothes'
+import { getImageUrl } from '@/utils/images'
 
 const route = useRoute()
 const clothes = ref([])
@@ -120,12 +121,6 @@ const searchKeyword = ref('')
 
 const categories = ['上衣', '裤子', '裙子', '外套', '鞋子', '配饰']
 const seasons = ['春/秋', '夏季', '冬季', '四季']
-
-const getImageUrl = (cloth) => {
-  if (!cloth?.image_path) return ''
-  const separator = cloth.image_path.includes('?') ? '&' : '?'
-  return `${cloth.image_path}${separator}v=${encodeURIComponent(cloth.updated_at || cloth.created_at || Date.now())}`
-}
 
 const toggleFavoriteFilter = () => {
   favoriteFilter.value = favoriteFilter.value === 'true' ? '' : 'true'

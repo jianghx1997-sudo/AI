@@ -89,6 +89,7 @@ module.exports = {
   ensureUploadDirs,
   createImageUpload,
   toPublicUploadPath,
+  getDiskPathFromPublicPath,
   moveTempUploadToPermanent,
   removeUploadedImage
 };

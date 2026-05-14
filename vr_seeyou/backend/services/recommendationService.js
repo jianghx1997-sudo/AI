@@ -198,16 +198,27 @@ function deriveItemAttributes(item) {
   if (hasAny(text, ['运动', '速干'])) formality -= 1.1;
   if (hasAny(text, ['休闲', '街头', '牛仔'])) formality -= 0.2;
 
+  const storedRole = ['top', 'bottom', 'outer', 'shoes', 'accessory'].includes(item.layering_role)
+    ? item.layering_role
+    : role;
+  const storedColorFamily = ['neutral', 'cool', 'warm', 'accent', 'unknown'].includes(item.color_family)
+    ? item.color_family
+    : getColorFamily(item.color);
+  const storedWarmth = Number(item.warmth_level);
+  const storedBreathability = Number(item.breathability_level);
+  const storedFormality = Number(item.formality_level);
+  const weatherRiskText = String(item.weather_risk || '');
+
   return {
-    warmth_level: clamp(round(warmth, 1), 1, 5),
-    breathability_level: clamp(round(breathability, 1), 1, 5),
-    formality_level: clamp(round(formality, 1), 1, 5),
-    layering_role: role,
-    color_family: getColorFamily(item.color),
+    warmth_level: Number.isFinite(storedWarmth) ? clamp(round(storedWarmth, 1), 1, 5) : clamp(round(warmth, 1), 1, 5),
+    breathability_level: Number.isFinite(storedBreathability) ? clamp(round(storedBreathability, 1), 1, 5) : clamp(round(breathability, 1), 1, 5),
+    formality_level: Number.isFinite(storedFormality) ? clamp(round(storedFormality, 1), 1, 5) : clamp(round(formality, 1), 1, 5),
+    layering_role: storedRole,
+    color_family: storedColorFamily,
     weather_risk: {
-      rain_light_color: hasAny(String(item.color || ''), ['白', '浅', '米']) && role !== 'accessory',
-      heavy_in_heat: warmth >= 4 || role === 'outer',
-      thin_in_cold: warmth <= 2
+      rain_light_color: hasAny(String(item.color || ''), ['白', '浅', '米']) && storedRole !== 'accessory',
+      heavy_in_heat: (Number.isFinite(storedWarmth) ? storedWarmth : warmth) >= 4 || hasAny(weatherRiskText, ['高温', '闷热', '厚']),
+      thin_in_cold: (Number.isFinite(storedWarmth) ? storedWarmth : warmth) <= 2 || hasAny(weatherRiskText, ['低温', '偏薄', '不保暖'])
     }
   };
 }

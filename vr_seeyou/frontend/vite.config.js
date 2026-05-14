@@ -40,15 +40,8 @@ export default defineConfig({
         navigateFallback: '/index.html',
         runtimeCaching: [
           {
-            urlPattern: /\/uploads\/.*\.(?:png|jpg|jpeg|webp)$/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'wardrobe-images',
-              expiration: {
-                maxEntries: 120,
-                maxAgeSeconds: 60 * 60 * 24 * 30
-              }
-            }
+            urlPattern: /\/api\/images\/.*\.(?:png|jpg|jpeg|webp)(?:\?.*)?$/i,
+            handler: 'NetworkOnly'
           },
           {
             urlPattern: /\/api\/.*$/i,

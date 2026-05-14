@@ -5,7 +5,10 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "check": "node --check server.js && node --check database.js && node --check routes/auth.js && node --check routes/clothes.js && node --check controllers/wardrobeController.js && node --check controllers/weatherController.js && node --check controllers/recommendationController.js && node --check services/recommendationService.js && node --check services/aiReviewService.js && node --check aiService.js",
+    "test:recommendation": "node scripts/recommendation-smoke.js",
+    "test:api": "node scripts/api-smoke.js"
   },
   "dependencies": {
     "axios": "^1.6.2",

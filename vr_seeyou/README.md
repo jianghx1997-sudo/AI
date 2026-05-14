@@ -1,6 +1,6 @@
 # 🧥 AI智能衣橱 - SeeYou Wardrobe
 
-一个基于 PWA 技术的智能衣橱应用，支持手机拍照上传、AI 自动识别分类、确认保存、搜索筛选和衣橱管理。
+一个基于 PWA 技术的智能衣橱应用，支持账号登录、手机拍照上传、AI 自动识别与标签补全、确认保存、搜索筛选、天气穿搭推荐、推荐反馈和衣橱管理。
 
 ## 🚀 快速开始
 
@@ -47,6 +47,15 @@ vr_seeyou/
 | 数据库 | SQLite | 零配置，单文件存储 |
 | AI识别 | Mock / 火山方舟 / 阿里云视觉智能 / 百度AI | 通过 `.env` 切换，Mock 可直接体验 |
 
+## 📝 本地账号
+
+首次启动后端会自动创建默认演示账号：
+
+- 用户名：`demo`
+- 密码：读取 `backend/.env` 的 `DEMO_USER_PASSWORD`，默认开发值为 `demo123456`
+
+业务接口均需要登录。衣物、穿着记录、推荐反馈按用户隔离；衣物图片通过 `/api/images/...` 鉴权访问，不再直接公开 `/uploads` 目录。
+
 ## 📝 配置AI API
 
 1. 复制后端配置文件模板：`backend/.env.example` → `backend/.env`
@@ -58,12 +67,31 @@ vr_seeyou/
 
 ## 🔌 核心 API
 
+- `POST /api/auth/login`：账号密码登录
+- `GET /api/auth/me`：获取当前用户
 - `POST /api/clothes/recognize`：上传图片并进行 AI 识别，不保存入库
 - `POST /api/clothes`：确认保存识别结果
 - `GET /api/clothes?search=关键词`：搜索/筛选衣物
+- `POST /api/clothes/:id/reanalyze`：对已有衣物重新 AI 分析，返回待确认标签
+- `GET /api/images/:filename`：登录后访问衣物图片
 - `POST /api/clothes/upload`：旧版兼容接口，上传后立即保存
 - `GET /api/weather/current?city=110101`：查询高德实况天气
-- `GET /api/recommendations/outfits`：根据天气、场景和衣橱生成穿搭推荐
+- `GET /api/recommendations/outfits?aiReview=true`：根据天气、场景和衣橱生成穿搭推荐，并可启用 AI 评审
+- `POST /api/recommendations/feedback`：记录喜欢、已穿、不适合及原因
+
+## ✅ 验证命令
+
+```bash
+cd backend
+npm run check
+npm run test:recommendation
+
+# 后端服务启动后可运行
+npm run test:api
+
+cd ../frontend
+npm run build
+```
 
 ## 📱 使用方式
 
@@ -74,12 +102,13 @@ vr_seeyou/
 ## 🌟 功能特性
 
 - [x] 手机拍照/相册上传
-- [x] AI自动识别衣物类型、颜色、季节
+- [x] 账号密码登录与用户数据隔离
+- [x] AI自动识别衣物类型、颜色、季节、材质、风格和推荐增强标签
 - [x] 识别预览后确认保存
 - [x] 网格化衣橱展示
 - [x] 分类筛选与搜索
 - [x] PWA离线缓存
-- [x] 天气集成与规则穿搭推荐（Phase 2 原型）
+- [x] 天气集成、规则穿搭推荐、缺口建议与 AI 顾问评审
 - [ ] 数字人试穿（Phase 3）
 
 ## 📄 License

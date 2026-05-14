@@ -15,28 +15,45 @@ function signToken(user) {
   );
 }
 
-async function requireAuth(req, res, next) {
-  try {
-    const header = req.headers.authorization || '';
-    const match = header.match(/^Bearer\s+(.+)$/i);
-    if (!match) {
-      return res.status(401).json({ success: false, error: '请先登录' });
-    }
+function getRequestToken(req, { allowQueryToken = false } = {}) {
+  const header = req.headers.authorization || '';
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  if (match?.[1]) return match[1];
 
-    const payload = jwt.verify(match[1], JWT_SECRET);
-    const user = await dbAsync.getUserById(payload.sub);
-    if (!user) {
+  if (allowQueryToken && req.method === 'GET') {
+    return req.query.token || '';
+  }
+
+  return '';
+}
+
+function createAuthMiddleware(options = {}) {
+  return async function authMiddleware(req, res, next) {
+    try {
+      const token = getRequestToken(req, options);
+      if (!token) {
+        return res.status(401).json({ success: false, error: '请先登录' });
+      }
+
+      const payload = jwt.verify(token, JWT_SECRET);
+      const user = await dbAsync.getUserById(payload.sub);
+      if (!user) {
+        return res.status(401).json({ success: false, error: '登录状态已失效' });
+      }
+
+      req.user = user;
+      next();
+    } catch (error) {
       return res.status(401).json({ success: false, error: '登录状态已失效' });
     }
-
-    req.user = user;
-    next();
-  } catch (error) {
-    return res.status(401).json({ success: false, error: '登录状态已失效' });
-  }
+  };
 }
+
+const requireAuth = createAuthMiddleware();
+const requireImageAuth = createAuthMiddleware({ allowQueryToken: true });
 
 module.exports = {
   requireAuth,
+  requireImageAuth,
   signToken
 };

@@ -67,6 +67,48 @@ function isDefaultDemoPassword() {
   return !process.env.DEMO_USER_PASSWORD;
 }
 
+async function initSchemaMigrationsTable() {
+  await run(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      id TEXT PRIMARY KEY,
+      applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+}
+
+async function hasMigration(id) {
+  const row = await get('SELECT id FROM schema_migrations WHERE id = ?', [id]);
+  return Boolean(row);
+}
+
+async function recordMigration(id) {
+  await run(
+    'INSERT OR IGNORE INTO schema_migrations (id, applied_at) VALUES (?, ?)',
+    [id, new Date().toISOString()]
+  );
+}
+
+async function applyMigration(id, up) {
+  if (await hasMigration(id)) return;
+  await up();
+  await recordMigration(id);
+}
+
+async function runSchemaMigrations() {
+  await applyMigration('20260514_core_query_indexes', async () => {
+    await run('CREATE INDEX IF NOT EXISTS idx_clothes_user_created ON clothes(user_id, created_at)');
+    await run('CREATE INDEX IF NOT EXISTS idx_clothes_user_category ON clothes(user_id, category)');
+    await run('CREATE INDEX IF NOT EXISTS idx_clothes_user_season ON clothes(user_id, season)');
+    await run('CREATE INDEX IF NOT EXISTS idx_clothes_user_favorite ON clothes(user_id, is_favorite)');
+    await run('CREATE INDEX IF NOT EXISTS idx_clothes_user_updated ON clothes(user_id, updated_at)');
+    await run('CREATE INDEX IF NOT EXISTS idx_wear_logs_user_worn ON wear_logs(user_id, worn_at)');
+    await run('CREATE INDEX IF NOT EXISTS idx_wear_logs_cloth_worn ON wear_logs(cloth_id, worn_at)');
+    await run('CREATE INDEX IF NOT EXISTS idx_recommendation_logs_user_created ON recommendation_logs(user_id, created_at)');
+    await run('CREATE INDEX IF NOT EXISTS idx_recommendation_logs_snapshot ON recommendation_logs(recommendation_snapshot_id)');
+    await run('CREATE INDEX IF NOT EXISTS idx_recommendation_snapshots_user_created ON recommendation_snapshots(user_id, created_at)');
+  });
+}
+
 // 初始化表
 function initUsersTable() {
   return new Promise((resolve, reject) => {
@@ -105,6 +147,12 @@ function initTable() {
         style TEXT,
         occasion TEXT DEFAULT '休闲',
         fit TEXT DEFAULT '标准',
+        warmth_level REAL,
+        breathability_level REAL,
+        formality_level REAL,
+        layering_role TEXT,
+        color_family TEXT,
+        weather_risk TEXT,
         is_favorite INTEGER DEFAULT 0,
         wear_count INTEGER DEFAULT 0,
         last_worn TEXT,
@@ -121,26 +169,39 @@ function initTable() {
   });
 }
 
-function initRecommendationTables() {
-  return new Promise((resolve, reject) => {
-    db.run(`
-      CREATE TABLE IF NOT EXISTS recommendation_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        outfit_name TEXT,
-        occasion TEXT,
-        weather TEXT,
-        temperature REAL,
-        item_ids TEXT,
-        feedback TEXT,
-        note TEXT,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP
-      )
-    `, (err) => {
-      if (err) reject(err);
-      else resolve();
-    });
-  });
+async function initRecommendationTables() {
+  await run(`
+    CREATE TABLE IF NOT EXISTS recommendation_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      recommendation_snapshot_id INTEGER,
+      outfit_key TEXT,
+      outfit_name TEXT,
+      occasion TEXT,
+      weather TEXT,
+      temperature REAL,
+      item_ids TEXT,
+      feedback TEXT,
+      note TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS recommendation_snapshots (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      occasion TEXT,
+      weather TEXT,
+      temperature REAL,
+      city TEXT,
+      ai_review_enabled INTEGER DEFAULT 0,
+      request_context TEXT,
+      result_json TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
 }
 
 function initWearLogTables() {
@@ -165,8 +226,16 @@ function initWearLogTables() {
 
 async function ensureUserColumns() {
   await ensureColumn('clothes', 'user_id', 'INTEGER');
+  await ensureColumn('clothes', 'warmth_level', 'REAL');
+  await ensureColumn('clothes', 'breathability_level', 'REAL');
+  await ensureColumn('clothes', 'formality_level', 'REAL');
+  await ensureColumn('clothes', 'layering_role', 'TEXT');
+  await ensureColumn('clothes', 'color_family', 'TEXT');
+  await ensureColumn('clothes', 'weather_risk', 'TEXT');
   await ensureColumn('wear_logs', 'user_id', 'INTEGER');
   await ensureColumn('recommendation_logs', 'user_id', 'INTEGER');
+  await ensureColumn('recommendation_logs', 'recommendation_snapshot_id', 'INTEGER');
+  await ensureColumn('recommendation_logs', 'outfit_key', 'TEXT');
 }
 
 async function ensureDefaultUser() {
@@ -346,19 +415,25 @@ const dbAsync = {
       const now = new Date().toISOString();
       const {
         name, image_path, brand, purchase_date, category, color, season,
-        material, style, occasion, fit, tags, confidence, source, user_id
+        material, style, occasion, fit, tags, confidence, source, user_id,
+        warmth_level, breathability_level, formality_level, layering_role,
+        color_family, weather_risk
       } = cloth;
 
       db.run(
         `INSERT INTO clothes (
           user_id, name, image_path, brand, purchase_date, category, color, season,
-          material, style, occasion, fit, tags, confidence, source, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          material, style, occasion, fit, warmth_level, breathability_level,
+          formality_level, layering_role, color_family, weather_risk,
+          tags, confidence, source, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           user_id || null, name, image_path, brand || null, purchase_date || null,
           category || '上衣', color || null, season || null,
           material || null, style || null, occasion || '休闲',
-          fit || '标准', tags || null, confidence || null,
+          fit || '标准', warmth_level ?? null, breathability_level ?? null,
+          formality_level ?? null, layering_role || null, color_family || null,
+          weather_risk || null, tags || null, confidence || null,
           source || 'mock', now, now
         ],
         function (err) {
@@ -445,7 +520,9 @@ const dbAsync = {
     return new Promise((resolve, reject) => {
       const allowed = [
         'name', 'image_path', 'brand', 'purchase_date', 'category', 'color',
-        'season', 'material', 'style', 'occasion', 'fit', 'tags'
+        'season', 'material', 'style', 'occasion', 'fit', 'tags',
+        'warmth_level', 'breathability_level', 'formality_level',
+        'layering_role', 'color_family', 'weather_risk'
       ];
       const keys = Object.keys(updates).filter(k => allowed.includes(k));
       if (keys.length === 0) return resolve(null);
@@ -615,16 +692,56 @@ const dbAsync = {
     });
   },
 
+  addRecommendationSnapshot: (snapshot) => {
+    return new Promise((resolve, reject) => {
+      const now = new Date().toISOString();
+      const requestContext = JSON.stringify(snapshot.request_context || {});
+      const resultJson = JSON.stringify(snapshot.result_json || {});
+
+      db.run(
+        `INSERT INTO recommendation_snapshots (
+          user_id, occasion, weather, temperature, city, ai_review_enabled,
+          request_context, result_json, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          parseInt(snapshot.user_id),
+          snapshot.occasion || null,
+          snapshot.weather || null,
+          snapshot.temperature !== undefined ? Number(snapshot.temperature) : null,
+          snapshot.city || null,
+          snapshot.ai_review_enabled ? 1 : 0,
+          requestContext,
+          resultJson,
+          now
+        ],
+        function (err) {
+          if (err) return reject(err);
+          resolve({ id: this.lastID, created_at: now });
+        }
+      );
+    });
+  },
+
+  getRecommendationSnapshotById: (id, userId) => {
+    return get(
+      'SELECT * FROM recommendation_snapshots WHERE id = ? AND user_id = ?',
+      [parseInt(id), parseInt(userId)]
+    );
+  },
+
   addRecommendationLog: (log) => {
     return new Promise((resolve, reject) => {
       const now = new Date().toISOString();
       const itemIds = Array.isArray(log.item_ids) ? JSON.stringify(log.item_ids) : (log.item_ids || '[]');
       db.run(
         `INSERT INTO recommendation_logs (
-          user_id, outfit_name, occasion, weather, temperature, item_ids, feedback, note, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          user_id, recommendation_snapshot_id, outfit_key, outfit_name, occasion,
+          weather, temperature, item_ids, feedback, note, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           log.user_id || null,
+          log.recommendation_snapshot_id || null,
+          log.outfit_key || null,
           log.outfit_name || null,
           log.occasion || null,
           log.weather || null,
@@ -672,6 +789,8 @@ const dbAsync = {
     await initRecommendationTables();
     await initWearLogTables();
     await ensureUserColumns();
+    await initSchemaMigrationsTable();
+    await runSchemaMigrations();
     const demoUser = await ensureDefaultUser();
     await migrateFromJson();
     await assignLegacyRowsToUser(demoUser.id);

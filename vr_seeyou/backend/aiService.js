@@ -222,7 +222,7 @@ async function volcanoRecognize(imagePath) {
               },
               {
                 type: 'text',
-                text: '请只识别图片中最主要、最清晰的衣物，不要把人物皮肤、背景、家具或灯光当作衣物颜色。以严格 JSON 返回：{"name":"简短衣物名","category":"上衣/裤子/裙子/外套/鞋子/配饰","color":"主色，如浅灰色/淡紫色/黑色","season":"春/秋/夏季/冬季/四季","material":"尽量判断，如羽绒/棉/羊毛/牛仔布/皮革/未知","style":"休闲/商务/运动/正式/街头/简约","occasion":"通勤/约会/运动/休闲/正式/旅行","fit":"修身/宽松/标准","tags":"用逗号分隔的补充标签","confidence":0到1之间的小数}。只返回JSON，不要其他文字。'
+                text: '请只识别图片中最主要、最清晰的衣物，不要把人物皮肤、背景、家具或灯光当作衣物颜色。以严格 JSON 返回，字段和格式如下：{"name":"简短衣物名","category":"上衣/裤子/裙子/外套/鞋子/配饰","color":"主色，如浅灰色/淡紫色/黑色","season":"春/秋/夏季/冬季/四季","material":"尽量判断，如羽绒/棉/羊毛/牛仔布/皮革/未知","style":"休闲/商务/运动/正式/街头/简约","occasion":"通勤/约会/运动/休闲/正式/旅行，可多值逗号分隔","fit":"修身/宽松/标准","warmth_level":3,"breathability_level":3,"formality_level":2.5,"layering_role":"top/bottom/outer/shoes/accessory","color_family":"neutral/cool/warm/accent/unknown","weather_risk":"雨雪/高温/低温等风险短语，可为空","tags":"用逗号分隔的补充标签","confidence":0.85}。warmth_level、breathability_level、formality_level 必须是 1 到 5 的数字。只返回JSON，不要其他文字。'
               }
             ]
           }
@@ -276,6 +276,12 @@ async function volcanoRecognize(imagePath) {
     const name = parsed.名称 || parsed.name || `${color}${category}`;
     const tags = parsed.标签 || parsed.tags || [category, color, season, style].filter(Boolean).join(',');
     const confidence = Number(parsed.置信度 || parsed.confidence || 0.85);
+    const warmthLevel = Number(parsed.保暖度 || parsed.warmth_level);
+    const breathabilityLevel = Number(parsed.透气度 || parsed.breathability_level);
+    const formalityLevel = Number(parsed.正式度 || parsed.formality_level);
+    const layeringRole = parsed.叠穿角色 || parsed.layering_role || '';
+    const colorFamily = parsed.色系 || parsed.color_family || '';
+    const weatherRisk = parsed.天气风险 || parsed.weather_risk || '';
 
     return {
       name,
@@ -286,6 +292,12 @@ async function volcanoRecognize(imagePath) {
       style,
       occasion,
       fit,
+      warmth_level: Number.isFinite(warmthLevel) ? Math.max(1, Math.min(5, warmthLevel)) : undefined,
+      breathability_level: Number.isFinite(breathabilityLevel) ? Math.max(1, Math.min(5, breathabilityLevel)) : undefined,
+      formality_level: Number.isFinite(formalityLevel) ? Math.max(1, Math.min(5, formalityLevel)) : undefined,
+      layering_role: layeringRole,
+      color_family: colorFamily,
+      weather_risk: weatherRisk,
       tags,
       confidence: Number.isFinite(confidence) ? Math.max(0, Math.min(1, confidence)) : 0.85,
       raw: { source: 'volcano_ark', originalResponse: content }

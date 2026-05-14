@@ -104,6 +104,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { getCategoryStats, getClothes, getCurrentWeather, getWardrobeAnalysis } from '@/api/clothes'
 import { useAuthStore } from '@/stores/auth'
+import { getImageUrl } from '@/utils/images'
 
 const authStore = useAuthStore()
 const stats = ref([])
@@ -125,12 +126,6 @@ const weatherSubtitle = computed(() => {
   }
   return `${analysis.value?.total || 0} 件衣物已整理`
 })
-
-const getImageUrl = (cloth) => {
-  if (!cloth?.image_path) return ''
-  const separator = cloth.image_path.includes('?') ? '&' : '?'
-  return `${cloth.image_path}${separator}v=${encodeURIComponent(cloth.updated_at || cloth.created_at || Date.now())}`
-}
 
 onMounted(async () => {
   try {

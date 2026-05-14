@@ -59,6 +59,14 @@ export function updateCloth(id, data) {
   })
 }
 
+// 重新分析已有衣物图片，返回待确认的 AI 标签
+export function reanalyzeCloth(id) {
+  return request({
+    url: `/api/clothes/${id}/reanalyze`,
+    method: 'post'
+  })
+}
+
 // 删除衣物
 export function deleteCloth(id) {
   return request({

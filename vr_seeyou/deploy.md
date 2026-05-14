@@ -89,26 +89,28 @@ nano .env
 编辑 `.env` 文件：
 
 ```env
-# AI API 配置（任选其一或同时配置）
-
-# 阿里云视觉智能
-ALIYUN_ACCESS_KEY_ID=your_access_key_id
-ALIYUN_ACCESS_KEY_SECRET=your_access_key_secret
-
-# 百度AI开放平台
-BAIDU_APP_ID=your_app_id
-BAIDU_API_KEY=your_api_key
-BAIDU_SECRET_KEY=your_secret_key
-
 # 服务配置
 PORT=3000
 UPLOAD_DIR=./uploads
+JWT_SECRET=replace-with-a-long-random-secret
+JWT_EXPIRES_IN=7d
+DEMO_USER_PASSWORD=replace-demo-password
 
 # 开发模式：设置为 true 则使用模拟AI（无需申请API即可体验）
 MOCK_AI=true
+
+# 火山方舟视觉模型（OpenAI 兼容接口）
+VOLCANO_API_KEY=your_volcano_key
+VOLCANO_MODEL_ENDPOINT=your_openai_compatible_endpoint
+VOLCANO_MODEL_ID=your_model_id
+
+# 高德天气 Web 服务 API
+AMAP_KEY=your_amap_web_service_key
+AMAP_CITY=110101
 ```
 
 **首次部署建议设置 `MOCK_AI=true`，无需申请API即可体验完整功能。**
+正式部署必须修改 `JWT_SECRET` 和 `DEMO_USER_PASSWORD`。
 
 ### 3.3 使用 PM2 启动后端
 
@@ -169,11 +171,13 @@ server {
         proxy_cache_bypass $http_upgrade;
     }
 
-    # 图片文件代理
-    location /uploads/ {
+    # 衣物图片鉴权访问
+    location /api/images/ {
         proxy_pass http://localhost:3000;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     }
 
     # Gzip 压缩

@@ -13,7 +13,6 @@ ensureUploadDirs();
 
 app.use(cors());
 app.use(express.json());
-app.use('/uploads', express.static(UPLOAD_DIR));
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -40,6 +39,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('  POST /api/auth/login        - 登录用户');
   console.log('  GET  /api/auth/me           - 获取当前用户');
   console.log('  POST /api/clothes/recognize  - 上传并识别衣物（不入库）');
+  console.log('  GET  /api/images/:file       - 登录后访问衣物图片');
   console.log('  POST /api/clothes            - 确认保存衣物');
   console.log('  POST /api/clothes/upload     - 旧版上传识别并保存');
   console.log('  GET  /api/clothes            - 获取所有衣物');

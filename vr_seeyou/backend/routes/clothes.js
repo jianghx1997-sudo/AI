@@ -1,14 +1,15 @@
 const express = require('express');
+const fs = require('fs');
 
 const { dbAsync } = require('../database');
 const { recognizeClothing } = require('../aiService');
-const { requireAuth } = require('../middleware/auth');
-const { analyzeWardrobe } = require('../services/wardrobeAnalysisService');
-const { getCurrentWeather, locateByIp, reverseGeocode } = require('../services/weatherService');
-const { recommendOutfits } = require('../services/recommendationService');
-const { reviewRecommendations } = require('../services/aiReviewService');
+const { requireAuth, requireImageAuth } = require('../middleware/auth');
+const { getCategoryStats, getWardrobeAnalysis } = require('../controllers/wardrobeController');
+const { getCurrentWeatherHandler, locateByIpHandler, reverseGeocodeHandler } = require('../controllers/weatherController');
+const { getOutfitRecommendations, submitRecommendationFeedback } = require('../controllers/recommendationController');
 const {
   createImageUpload,
+  getDiskPathFromPublicPath,
   moveTempUploadToPermanent,
   removeUploadedImage,
   toPublicUploadPath
@@ -17,8 +18,6 @@ const {
 const router = express.Router();
 const recognizeUpload = createImageUpload({ temp: true });
 const legacyUpload = createImageUpload();
-
-router.use(requireAuth);
 
 const CLOTH_FIELDS = [
   'name',
@@ -30,6 +29,12 @@ const CLOTH_FIELDS = [
   'style',
   'occasion',
   'fit',
+  'warmth_level',
+  'breathability_level',
+  'formality_level',
+  'layering_role',
+  'color_family',
+  'weather_risk',
   'brand',
   'purchase_date',
   'tags',
@@ -47,29 +52,6 @@ function pickClothPayload(body) {
   return payload;
 }
 
-function parseItemIds(value) {
-  if (Array.isArray(value)) {
-    return value.map(id => Number(id)).filter(Number.isFinite);
-  }
-
-  const raw = String(value || '').trim();
-  if (!raw) return [];
-
-  try {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      return parsed.map(id => Number(id)).filter(Number.isFinite);
-    }
-  } catch (error) {
-    return raw
-      .split(/[,，、/|]/)
-      .map(id => Number(id.trim()))
-      .filter(Number.isFinite);
-  }
-
-  return [];
-}
-
 async function recognizeFile(file) {
   const imagePath = file.path;
   const originalName = file.originalname;
@@ -81,18 +63,33 @@ async function recognizeFile(file) {
   return aiResult;
 }
 
-function normalizeClientIp(ip = '') {
-  return String(ip).replace(/^::ffff:/, '').trim();
-}
+router.get('/images/*', requireImageAuth, async (req, res) => {
+  try {
+    const relativePath = String(req.params[0] || '').replace(/\\/g, '/');
+    if (!relativePath || relativePath.startsWith('temp/') || relativePath.includes('..')) {
+      return res.status(404).json({ success: false, error: '图片不存在' });
+    }
 
-function isPrivateOrLocalIp(ip = '') {
-  const value = normalizeClientIp(ip);
-  if (!value || value === '::1' || value === '127.0.0.1' || value === 'localhost') return true;
-  if (value.startsWith('10.') || value.startsWith('192.168.')) return true;
+    const publicPath = `/uploads/${relativePath}`;
+    const clothes = await dbAsync.getAllClothes({ userId: req.user.id });
+    const owned = clothes.some(item => item.image_path === publicPath);
+    if (!owned) {
+      return res.status(404).json({ success: false, error: '图片不存在' });
+    }
 
-  const match = value.match(/^172\.(\d+)\./);
-  return Boolean(match && Number(match[1]) >= 16 && Number(match[1]) <= 31);
-}
+    const imagePath = getDiskPathFromPublicPath(publicPath);
+    if (!imagePath || !fs.existsSync(imagePath)) {
+      return res.status(404).json({ success: false, error: '图片文件不存在' });
+    }
+
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.sendFile(imagePath);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message || '图片读取失败' });
+  }
+});
+
+router.use(requireAuth);
 
 router.post('/clothes/recognize', recognizeUpload.single('image'), async (req, res) => {
   try {
@@ -126,6 +123,37 @@ router.post('/clothes/recognize', recognizeUpload.single('image'), async (req, r
       });
     }
     res.status(500).json({ success: false, error: error.message || '识别失败' });
+  }
+});
+
+router.post('/clothes/:id/reanalyze', async (req, res) => {
+  try {
+    const cloth = await dbAsync.getClothById(req.params.id, req.user.id);
+    if (!cloth) {
+      return res.status(404).json({ success: false, error: '衣物不存在' });
+    }
+
+    const imagePath = getDiskPathFromPublicPath(cloth.image_path);
+    if (!imagePath) {
+      return res.status(400).json({ success: false, error: '衣物图片路径无效' });
+    }
+    if (!fs.existsSync(imagePath)) {
+      return res.status(404).json({ success: false, error: '衣物图片文件不存在' });
+    }
+
+    const aiResult = await recognizeClothing(imagePath, cloth.name || 'cloth.jpg');
+    res.json({
+      success: true,
+      data: {
+        cloth_id: cloth.id,
+        image_path: cloth.image_path,
+        persisted: true
+      },
+      ai_result: aiResult
+    });
+  } catch (error) {
+    console.error('重新分析衣物失败:', error);
+    res.status(500).json({ success: false, error: error.message || '重新分析失败' });
   }
 });
 
@@ -168,6 +196,14 @@ router.post('/clothes/upload', legacyUpload.single('image'), async (req, res) =>
       season: aiResult.season,
       material: aiResult.material,
       style: aiResult.style,
+      occasion: aiResult.occasion,
+      fit: aiResult.fit,
+      warmth_level: aiResult.warmth_level,
+      breathability_level: aiResult.breathability_level,
+      formality_level: aiResult.formality_level,
+      layering_role: aiResult.layering_role,
+      color_family: aiResult.color_family,
+      weather_risk: aiResult.weather_risk,
       tags: aiResult.tags,
       confidence: aiResult.confidence,
       source: aiResult.raw?.source || 'mock'
@@ -241,6 +277,12 @@ router.put('/clothes/:id', async (req, res) => {
       'style',
       'occasion',
       'fit',
+      'warmth_level',
+      'breathability_level',
+      'formality_level',
+      'layering_role',
+      'color_family',
+      'weather_risk',
       'brand',
       'purchase_date',
       'tags'
@@ -279,152 +321,13 @@ router.delete('/clothes/:id', async (req, res) => {
   }
 });
 
-router.get('/stats/categories', async (req, res) => {
-  try {
-    const stats = await dbAsync.getCategoryStats(req.user.id);
-    res.json({ success: true, data: stats });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-router.get('/wardrobe/analysis', async (req, res) => {
-  try {
-    const clothes = await dbAsync.getAllClothes({ userId: req.user.id });
-    res.json({ success: true, data: analyzeWardrobe(clothes) });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-router.get('/weather/current', async (req, res) => {
-  try {
-    const weather = await getCurrentWeather(req.query.city);
-    res.json({ success: true, data: weather });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-router.get('/location/ip', async (req, res) => {
-  try {
-    const forwarded = req.headers['x-forwarded-for'];
-    const detectedIp = req.query.ip || (typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : '') || req.socket.remoteAddress;
-    const ip = isPrivateOrLocalIp(detectedIp) ? '' : normalizeClientIp(detectedIp);
-    const location = await locateByIp(ip);
-    res.json({ success: true, data: location });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-router.get('/location/regeo', async (req, res) => {
-  try {
-    const location = await reverseGeocode(req.query.longitude, req.query.latitude);
-    res.json({ success: true, data: location });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-router.get('/recommendations/outfits', async (req, res) => {
-  try {
-    const clothes = await dbAsync.getAllClothes({ userId: req.user.id });
-    const aiReviewEnabled = req.query.aiReview === 'true' || req.query.aiReview === '1';
-    const occasion = req.query.occasion || '休闲';
-    let weather = {
-      source: 'manual',
-      weather: req.query.weather || '晴',
-      temperature: req.query.temperature !== undefined ? Number(req.query.temperature) : 22,
-      humidity: req.query.humidity !== undefined ? Number(req.query.humidity) : undefined,
-      city: req.query.city || ''
-    };
-
-    if (req.query.useWeather === 'true') {
-      const liveWeather = await getCurrentWeather(req.query.city);
-      if (liveWeather.available) {
-        weather = liveWeather;
-      }
-    }
-
-    const feedbackLogs = await dbAsync.getRecommendationLogs({ userId: req.user.id, limit: 80 });
-    const result = recommendOutfits(clothes, {
-      weather,
-      occasion,
-      feedbackLogs,
-      maxOutfits: aiReviewEnabled ? 5 : 3
-    });
-    const reviewedResult = await reviewRecommendations(result, {
-      weather,
-      occasion
-    }, {
-      enabled: aiReviewEnabled,
-      finalLimit: 3
-    });
-
-    res.json({
-      success: true,
-      data: {
-        weather,
-        occasion,
-        ai_review_enabled: aiReviewEnabled,
-        ...reviewedResult
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-router.post('/recommendations/feedback', async (req, res) => {
-  try {
-    const itemIds = parseItemIds(req.body.item_ids);
-    const ownedItemIds = [];
-    for (const itemId of itemIds) {
-      const cloth = await dbAsync.getClothById(itemId, req.user.id);
-      if (cloth) ownedItemIds.push(itemId);
-    }
-    const feedbackReason = req.body.feedback_reason || req.body.reason || '';
-    const feedbackNote = feedbackReason || req.body.note || '';
-    const result = await dbAsync.addRecommendationLog({
-      outfit_name: req.body.outfit_name,
-      occasion: req.body.occasion,
-      weather: req.body.weather,
-      temperature: req.body.temperature,
-      item_ids: ownedItemIds,
-      feedback: req.body.feedback,
-      note: feedbackNote,
-      user_id: req.user.id
-    });
-
-    const wearLogs = [];
-    if (req.body.feedback === 'worn') {
-      for (const itemId of ownedItemIds) {
-        const cloth = await dbAsync.getClothById(itemId, req.user.id);
-        if (!cloth) continue;
-
-        const wearResult = await dbAsync.recordWear(itemId, {
-          user_id: req.user.id,
-          occasion: req.body.occasion,
-          weather: req.body.weather,
-          note: feedbackNote || `来自推荐反馈：${req.body.outfit_name || '搭配'}`
-        });
-        wearLogs.push(wearResult.wear_log);
-      }
-    }
-
-    res.json({
-      success: true,
-      data: {
-        ...result,
-        feedback_reason: feedbackReason,
-        wear_logs: wearLogs
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.get('/stats/categories', getCategoryStats);
+router.get('/wardrobe/analysis', getWardrobeAnalysis);
+router.get('/weather/current', getCurrentWeatherHandler);
+router.get('/location/ip', locateByIpHandler);
+router.get('/location/regeo', reverseGeocodeHandler);
+router.get('/recommendations/outfits', getOutfitRecommendations);
+router.post('/recommendations/feedback', submitRecommendationFeedback);
 
 router.post('/clothes/:id/favorite', async (req, res) => {
   try {

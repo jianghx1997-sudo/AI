@@ -23,7 +23,7 @@
 | 后端 | Node.js + Express | 轻量，适配低配服务器 |
 | 数据库 | **SQLite** | 零配置，支撑关系查询（搭配表、穿着记录表） |
 | AI 识别 | 火山方舟 / 阿里云 / 百度 / Mock | 多源适配，通过 `.env` 切换 |
-| 天气数据 | 待接入（如和风天气） | 阶段2必需 |
+| 天气数据 | 高德 Web 服务 API | 支持实况天气、IP 定位和经纬度逆地理编码 |
 
 **当前状态**：数据库已使用 SQLite（`backend/data/wardrobe.db`）。`backend/data/clothes.json` 仅作为早期遗留数据源，在空库启动时可迁移一次；后续新数据以 SQLite 为准。
 
@@ -34,6 +34,18 @@
 ## 数据模型规划
 
 数据层必须能支撑三个阶段，字段设计宁多勿少，但不要过度抽象。
+
+### `users` 用户表
+```sql
+id            INTEGER PRIMARY KEY AUTOINCREMENT
+username      TEXT UNIQUE
+password_hash TEXT
+display_name  TEXT
+avatar_url    TEXT
+role          TEXT
+created_at    TEXT
+updated_at    TEXT
+```
 
 ### `clothes` 衣物表
 ```sql
@@ -49,6 +61,12 @@ material    TEXT
 style       TEXT          -- 休闲 / 商务 / 运动 / 正式 / 街头 / 简约
 occasion    TEXT          -- 通勤 / 约会 / 运动 / 休闲 / 正式 / 旅行
 fit         TEXT          -- 修身 / 宽松 / 标准
+warmth_level REAL        -- 保暖度 1-5，推荐侧优先使用
+breathability_level REAL -- 透气度 1-5
+formality_level REAL     -- 正式度 1-5
+layering_role TEXT       -- top / bottom / outer / shoes / accessory
+color_family TEXT        -- neutral / cool / warm / accent / unknown
+weather_risk TEXT        -- 雨雪、高温、低温等风险提示
 is_favorite INTEGER DEFAULT 0  -- 是否收藏
 wear_count  INTEGER DEFAULT 0  -- 穿着次数（阶段2统计用）
 last_worn   TEXT          -- 最后一次穿着日期
@@ -135,8 +153,10 @@ vr_seeyou/
 - 新上传流程：
   - `POST /api/clothes/recognize`：上传图片并识别，图片暂存在 `/uploads/temp/`，不写入数据库
   - `POST /api/clothes`：用户确认后保存衣物，并将临时图片移动为正式图片
+  - `POST /api/clothes/:id/reanalyze`：重新分析已有衣物图片，返回待确认 AI 标签
   - `POST /api/clothes/upload`：旧版兼容接口，上传后立即识别并保存
 - 衣物列表支持 `search` / `keyword` 参数，用于名称、类别、颜色、季节、材质、风格、场合、品牌和标签搜索
+- 衣物图片通过 `GET /api/images/:filename` 鉴权访问；前端不要直接渲染 `/uploads`。
 
 ---
 
@@ -163,6 +183,12 @@ node server.js
 # 前端
 cd frontend && npm run build
 # 构建必须无报错，产物在 dist/ 目录
+
+# 推荐规则回归
+cd backend && npm run test:recommendation
+
+# 后端服务启动后
+cd backend && npm run test:api
 ```
 
 ---
