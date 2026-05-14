@@ -65,7 +65,7 @@
             @click="$router.push(`/cloth/${cloth.id}`)"
           >
             <div class="cloth-image-wrapper">
-              <img :src="getImageUrl(cloth)" :alt="cloth.name" loading="lazy" />
+              <AuthImage :source="cloth" :alt="cloth.name" loading="lazy" />
               <div class="category-badge">{{ cloth.category }}</div>
               <div class="favorite-badge" v-if="cloth.is_favorite">
                 <van-icon name="like" size="15" />
@@ -108,7 +108,7 @@ import { computed, onActivated, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { showToast } from 'vant'
 import { getClothes } from '@/api/clothes'
-import { getImageUrl } from '@/utils/images'
+import AuthImage from '@/components/AuthImage.vue'
 
 const route = useRoute()
 const clothes = ref([])

@@ -2,6 +2,11 @@ const { dbAsync } = require('../database');
 const { getCurrentWeather } = require('../services/weatherService');
 const { recommendOutfits } = require('../services/recommendationService');
 const { reviewRecommendations } = require('../services/aiReviewService');
+const {
+  validateRecommendationQuery,
+  validateRecommendationFeedback,
+  sendValidationError
+} = require('../utils/validation');
 
 function parseItemIds(value) {
   if (Array.isArray(value)) {
@@ -47,19 +52,22 @@ function attachSnapshotMetadata(result, snapshotId) {
 
 async function getOutfitRecommendations(req, res) {
   try {
-    const clothes = await dbAsync.getAllClothes({ userId: req.user.id });
-    const aiReviewEnabled = req.query.aiReview === 'true' || req.query.aiReview === '1';
-    const occasion = req.query.occasion || '休闲';
-    let weather = {
-      source: 'manual',
-      weather: req.query.weather || '晴',
-      temperature: req.query.temperature !== undefined ? Number(req.query.temperature) : 22,
-      humidity: req.query.humidity !== undefined ? Number(req.query.humidity) : undefined,
-      city: req.query.city || ''
-    };
+    const validation = validateRecommendationQuery(req.query);
+    if (!validation.ok) {
+      return sendValidationError(res, validation.errors);
+    }
 
-    if (req.query.useWeather === 'true') {
-      const liveWeather = await getCurrentWeather(req.query.city);
+    const {
+      occasion,
+      aiReviewEnabled,
+      useWeather,
+      weather: manualWeather
+    } = validation.value;
+    const clothes = await dbAsync.getAllClothes({ userId: req.user.id });
+    let weather = manualWeather;
+
+    if (useWeather) {
+      const liveWeather = await getCurrentWeather(manualWeather.city);
       if (liveWeather.available) {
         weather = liveWeather;
       }
@@ -89,10 +97,10 @@ async function getOutfitRecommendations(req, res) {
       request_context: {
         query: {
           occasion,
-          weather: req.query.weather,
-          temperature: req.query.temperature,
-          city: req.query.city,
-          useWeather: req.query.useWeather === 'true',
+          weather: manualWeather.weather,
+          temperature: manualWeather.temperature,
+          city: manualWeather.city,
+          useWeather,
           aiReview: aiReviewEnabled
         },
         resolved_weather: weather,
@@ -120,6 +128,12 @@ async function getOutfitRecommendations(req, res) {
 
 async function submitRecommendationFeedback(req, res) {
   try {
+    const validation = validateRecommendationFeedback(req.body);
+    if (!validation.ok) {
+      return sendValidationError(res, validation.errors);
+    }
+
+    const feedbackPayload = validation.value;
     const itemIds = parseItemIds(req.body.item_ids);
     const ownedItemIds = [];
     for (const itemId of itemIds) {
@@ -127,9 +141,9 @@ async function submitRecommendationFeedback(req, res) {
       if (cloth) ownedItemIds.push(itemId);
     }
 
-    const feedbackReason = req.body.feedback_reason || req.body.reason || '';
-    const feedbackNote = feedbackReason || req.body.note || '';
-    const snapshotId = req.body.recommendation_snapshot_id ? Number(req.body.recommendation_snapshot_id) : null;
+    const feedbackReason = feedbackPayload.feedback_reason || '';
+    const feedbackNote = feedbackReason || feedbackPayload.note || '';
+    const snapshotId = feedbackPayload.recommendation_snapshot_id || null;
     if (snapshotId) {
       const snapshot = await dbAsync.getRecommendationSnapshotById(snapshotId, req.user.id);
       if (!snapshot) {
@@ -139,28 +153,28 @@ async function submitRecommendationFeedback(req, res) {
 
     const result = await dbAsync.addRecommendationLog({
       recommendation_snapshot_id: snapshotId,
-      outfit_key: req.body.outfit_key || req.body.snapshot_outfit_key,
-      outfit_name: req.body.outfit_name,
-      occasion: req.body.occasion,
-      weather: req.body.weather,
-      temperature: req.body.temperature,
+      outfit_key: feedbackPayload.outfit_key,
+      outfit_name: feedbackPayload.outfit_name,
+      occasion: feedbackPayload.occasion,
+      weather: feedbackPayload.weather,
+      temperature: feedbackPayload.temperature,
       item_ids: ownedItemIds,
-      feedback: req.body.feedback,
+      feedback: feedbackPayload.feedback,
       note: feedbackNote,
       user_id: req.user.id
     });
 
     const wearLogs = [];
-    if (req.body.feedback === 'worn') {
+    if (feedbackPayload.feedback === 'worn') {
       for (const itemId of ownedItemIds) {
         const cloth = await dbAsync.getClothById(itemId, req.user.id);
         if (!cloth) continue;
 
         const wearResult = await dbAsync.recordWear(itemId, {
           user_id: req.user.id,
-          occasion: req.body.occasion,
-          weather: req.body.weather,
-          note: feedbackNote || `来自推荐反馈：${req.body.outfit_name || '搭配'}`
+          occasion: feedbackPayload.occasion,
+          weather: feedbackPayload.weather,
+          note: feedbackNote || `来自推荐反馈：${feedbackPayload.outfit_name || '搭配'}`
         });
         wearLogs.push(wearResult.wear_log);
       }

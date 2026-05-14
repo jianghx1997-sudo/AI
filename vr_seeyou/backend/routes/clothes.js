@@ -7,6 +7,7 @@ const { requireAuth, requireImageAuth } = require('../middleware/auth');
 const { getCategoryStats, getWardrobeAnalysis } = require('../controllers/wardrobeController');
 const { getCurrentWeatherHandler, locateByIpHandler, reverseGeocodeHandler } = require('../controllers/weatherController');
 const { getOutfitRecommendations, submitRecommendationFeedback } = require('../controllers/recommendationController');
+const { validateClothPayload, sendValidationError } = require('../utils/validation');
 const {
   createImageUpload,
   getDiskPathFromPublicPath,
@@ -17,7 +18,6 @@ const {
 
 const router = express.Router();
 const recognizeUpload = createImageUpload({ temp: true });
-const legacyUpload = createImageUpload();
 
 const CLOTH_FIELDS = [
   'name',
@@ -160,63 +160,22 @@ router.post('/clothes/:id/reanalyze', async (req, res) => {
 router.post('/clothes', async (req, res) => {
   try {
     const payload = pickClothPayload(req.body);
-
-    if (!payload.image_path) {
-      return res.status(400).json({ success: false, error: '缺少衣物图片路径' });
-    }
-    if (!payload.name) {
-      return res.status(400).json({ success: false, error: '缺少衣物名称' });
+    const validation = validateClothPayload(payload, { requireImage: true, requireName: true });
+    if (!validation.ok) {
+      return sendValidationError(res, validation.errors);
     }
 
-    payload.image_path = moveTempUploadToPermanent(payload.image_path);
-    payload.user_id = req.user.id;
+    const clothPayload = {
+      ...validation.value,
+      image_path: moveTempUploadToPermanent(validation.value.image_path),
+      user_id: req.user.id
+    };
 
-    const cloth = await dbAsync.addCloth(payload);
+    const cloth = await dbAsync.addCloth(clothPayload);
     res.json({ success: true, data: cloth, message: '保存成功' });
   } catch (error) {
     console.error('保存衣物失败:', error);
     res.status(500).json({ success: false, error: error.message || '保存失败' });
-  }
-});
-
-// 兼容旧接口：上传后立即识别并保存。新前端使用 /clothes/recognize + /clothes。
-router.post('/clothes/upload', legacyUpload.single('image'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ success: false, error: '请上传图片文件' });
-    }
-
-    const aiResult = await recognizeFile(req.file);
-    const cloth = await dbAsync.addCloth({
-      user_id: req.user.id,
-      name: aiResult.name,
-      image_path: toPublicUploadPath(req.file.filename),
-      category: aiResult.category,
-      color: aiResult.color,
-      season: aiResult.season,
-      material: aiResult.material,
-      style: aiResult.style,
-      occasion: aiResult.occasion,
-      fit: aiResult.fit,
-      warmth_level: aiResult.warmth_level,
-      breathability_level: aiResult.breathability_level,
-      formality_level: aiResult.formality_level,
-      layering_role: aiResult.layering_role,
-      color_family: aiResult.color_family,
-      weather_risk: aiResult.weather_risk,
-      tags: aiResult.tags,
-      confidence: aiResult.confidence,
-      source: aiResult.raw?.source || 'mock'
-    });
-
-    res.json({
-      success: true,
-      data: cloth,
-      ai_result: aiResult
-    });
-  } catch (error) {
-    console.error('上传处理失败:', error);
-    res.status(500).json({ success: false, error: error.message || '处理失败' });
   }
 });
 
@@ -298,7 +257,12 @@ router.put('/clothes/:id', async (req, res) => {
       return res.status(400).json({ success: false, error: '没有可更新的字段' });
     }
 
-    const result = await dbAsync.updateCloth(req.params.id, updates, req.user.id);
+    const validation = validateClothPayload(updates, { partial: true });
+    if (!validation.ok) {
+      return sendValidationError(res, validation.errors);
+    }
+
+    const result = await dbAsync.updateCloth(req.params.id, validation.value, req.user.id);
     res.json({ success: true, message: '更新成功', data: result });
   } catch (error) {
     console.error('更新衣物失败:', error);

@@ -82,7 +82,7 @@
           :key="cloth.id"
           @click="$router.push(`/cloth/${cloth.id}`)"
         >
-          <img :src="getImageUrl(cloth)" :alt="cloth.name" />
+          <AuthImage :source="cloth" :alt="cloth.name" />
           <div class="recent-name">{{ cloth.name }}</div>
         </div>
       </div>
@@ -104,7 +104,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { getCategoryStats, getClothes, getCurrentWeather, getWardrobeAnalysis } from '@/api/clothes'
 import { useAuthStore } from '@/stores/auth'
-import { getImageUrl } from '@/utils/images'
+import AuthImage from '@/components/AuthImage.vue'
 
 const authStore = useAuthStore()
 const stats = ref([])

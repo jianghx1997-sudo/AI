@@ -41,7 +41,6 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('  POST /api/clothes/recognize  - 上传并识别衣物（不入库）');
   console.log('  GET  /api/images/:file       - 登录后访问衣物图片');
   console.log('  POST /api/clothes            - 确认保存衣物');
-  console.log('  POST /api/clothes/upload     - 旧版上传识别并保存');
   console.log('  GET  /api/clothes            - 获取所有衣物');
   console.log('  GET  /api/clothes/:id        - 获取单件衣物');
   console.log('  PUT  /api/clothes/:id        - 更新衣物');

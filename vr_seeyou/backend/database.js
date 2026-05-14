@@ -3,13 +3,21 @@ const path = require('path');
 const fs = require('fs');
 const bcrypt = require('bcryptjs');
 
-const DATA_DIR = path.join(__dirname, 'data');
-const DB_PATH = path.join(DATA_DIR, 'wardrobe.db');
+const DATA_DIR = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : path.join(__dirname, 'data');
+const DB_PATH = process.env.WARDROBE_DB_PATH || process.env.SQLITE_DB_PATH
+  ? path.resolve(process.env.WARDROBE_DB_PATH || process.env.SQLITE_DB_PATH)
+  : path.join(DATA_DIR, 'wardrobe.db');
+const DB_DIR = path.dirname(DB_PATH);
 const CLOTHES_JSON = path.join(DATA_DIR, 'clothes.json');
 
 // 确保数据目录存在
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+if (!fs.existsSync(DB_DIR)) {
+  fs.mkdirSync(DB_DIR, { recursive: true });
 }
 
 const db = new sqlite3.Database(DB_PATH, (err) => {

@@ -148,15 +148,14 @@ vr_seeyou/
   ```json
   { "success": false, "error": "错误描述" }
   ```
-- 图片访问通过 `/uploads/`（开发由 Vite proxy 转发，生产由 Nginx 代理）
+- 图片访问通过 `/api/images/...` + `Authorization` 头鉴权，不直接公开 `/uploads/`
 - 上传限制：单张 10MB，仅接受 jpg / jpeg / png / webp
 - 新上传流程：
   - `POST /api/clothes/recognize`：上传图片并识别，图片暂存在 `/uploads/temp/`，不写入数据库
   - `POST /api/clothes`：用户确认后保存衣物，并将临时图片移动为正式图片
   - `POST /api/clothes/:id/reanalyze`：重新分析已有衣物图片，返回待确认 AI 标签
-  - `POST /api/clothes/upload`：旧版兼容接口，上传后立即识别并保存
 - 衣物列表支持 `search` / `keyword` 参数，用于名称、类别、颜色、季节、材质、风格、场合、品牌和标签搜索
-- 衣物图片通过 `GET /api/images/:filename` 鉴权访问；前端不要直接渲染 `/uploads`。
+- 衣物图片通过 `GET /api/images/:filename` 鉴权访问；前端不要直接渲染 `/uploads`，也不要把 token 放进图片 URL。
 
 ---
 
@@ -185,9 +184,10 @@ cd frontend && npm run build
 # 构建必须无报错，产物在 dist/ 目录
 
 # 推荐规则回归
+# 包含基础 smoke 和 20 个固定衣橱/天气/场景 fixture 回归
 cd backend && npm run test:recommendation
 
-# 后端服务启动后
+# 默认会自动启动临时后端，使用临时 SQLite 和上传目录，不污染开发数据
 cd backend && npm run test:api
 ```
 

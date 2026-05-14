@@ -103,7 +103,7 @@
 
           <div class="outfit-items">
             <div class="outfit-item" v-for="item in outfit.items" :key="item.id" @click="$router.push(`/cloth/${item.id}`)">
-              <img :src="getImageUrl(item)" :alt="item.name" />
+              <AuthImage :source="item" :alt="item.name" />
               <div class="item-name">{{ item.name }}</div>
               <div class="item-category">{{ item.category }}</div>
             </div>
@@ -264,7 +264,7 @@ import {
   reverseGeocode,
   submitRecommendationFeedback
 } from '@/api/clothes'
-import { getImageUrl } from '@/utils/images'
+import AuthImage from '@/components/AuthImage.vue'
 
 const occasions = ['通勤', '约会', '运动', '休闲', '正式', '旅行']
 const city = ref('110101')

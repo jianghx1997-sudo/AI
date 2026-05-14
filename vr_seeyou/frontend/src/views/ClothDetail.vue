@@ -17,7 +17,7 @@
     <div class="detail-content" v-if="cloth">
       <!-- 大图展示 -->
       <div class="image-section">
-        <img :src="getImageUrl(cloth)" :alt="cloth.name" />
+        <AuthImage :source="cloth" :alt="cloth.name" />
         <div class="image-actions">
           <div
             class="icon-btn"
@@ -305,7 +305,22 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showToast, showSuccessToast } from 'vant'
 import { getClothById, getWearLogs, updateCloth, deleteCloth, toggleFavorite, recordWear, reanalyzeCloth } from '@/api/clothes'
-import { getImageUrl } from '@/utils/images'
+import AuthImage from '@/components/AuthImage.vue'
+import {
+  categories,
+  seasons,
+  occasions,
+  fits,
+  styles,
+  layeringRoles,
+  colorFamilies,
+  createClothEditForm,
+  mergeAiDraftIntoForm,
+  levelLabel,
+  roleLabel,
+  colorFamilyLabel,
+  sourceLabel
+} from '@/utils/clothForm'
 
 const route = useRoute()
 const router = useRouter()
@@ -318,28 +333,6 @@ const wearLogs = ref([])
 const reanalyzing = ref(false)
 const aiDraft = ref(null)
 
-const categories = ['上衣', '裤子', '裙子', '外套', '鞋子', '配饰']
-const seasons = ['春/秋', '夏季', '冬季', '四季']
-const occasions = ['通勤', '约会', '运动', '休闲', '正式', '旅行']
-const fits = ['修身', '宽松', '标准']
-const styles = ['休闲', '商务', '运动', '正式', '街头', '简约', '优雅']
-const layeringRoles = [
-  { label: '自动判断', value: '' },
-  { label: '上衣/内搭', value: 'top' },
-  { label: '下装', value: 'bottom' },
-  { label: '外套', value: 'outer' },
-  { label: '鞋子', value: 'shoes' },
-  { label: '配饰', value: 'accessory' }
-]
-const colorFamilies = [
-  { label: '自动判断', value: '' },
-  { label: '中性色', value: 'neutral' },
-  { label: '冷色系', value: 'cool' },
-  { label: '暖色系', value: 'warm' },
-  { label: '亮点色', value: 'accent' },
-  { label: '未知', value: 'unknown' }
-]
-
 const editForm = ref({})
 const selectedOccasions = computed(() => {
   return String(editForm.value.occasion || '')
@@ -347,11 +340,6 @@ const selectedOccasions = computed(() => {
     .map(item => item.trim())
     .filter(Boolean)
 })
-
-const normalizeSeason = (value) => {
-  if (value === '春秋') return '春/秋'
-  return seasons.includes(value) ? value : '四季'
-}
 
 const aiPreviewRows = computed(() => {
   const draft = aiDraft.value || {}
@@ -431,25 +419,7 @@ const toggleEdit = () => {
     isEditing.value = false
     return
   }
-  editForm.value = {
-    name: cloth.value.name,
-    category: cloth.value.category,
-    color: cloth.value.color,
-    season: normalizeSeason(cloth.value.season),
-    material: cloth.value.material,
-    style: cloth.value.style,
-    occasion: cloth.value.occasion || '休闲',
-    fit: cloth.value.fit || '标准',
-    brand: cloth.value.brand || '',
-    tags: cloth.value.tags || '',
-    warmth_level: Number(cloth.value.warmth_level || 3),
-    breathability_level: Number(cloth.value.breathability_level || 3),
-    formality_level: Number(cloth.value.formality_level || 2.5),
-    layering_role: cloth.value.layering_role || '',
-    color_family: cloth.value.color_family || '',
-    weather_risk: cloth.value.weather_risk || '',
-    purchase_date: cloth.value.purchase_date || ''
-  }
+  editForm.value = createClothEditForm(cloth.value)
   isEditing.value = true
 }
 
@@ -469,25 +439,7 @@ const reanalyze = async () => {
 }
 
 const applyAiDraft = () => {
-  const draft = aiDraft.value || {}
-  editForm.value = {
-    ...editForm.value,
-    name: draft.name || editForm.value.name,
-    category: draft.category || editForm.value.category,
-    color: draft.color || editForm.value.color,
-    season: normalizeSeason(draft.season || editForm.value.season),
-    material: draft.material || editForm.value.material,
-    style: styles.includes(draft.style) ? draft.style : editForm.value.style,
-    occasion: draft.occasion || editForm.value.occasion,
-    fit: fits.includes(draft.fit) ? draft.fit : editForm.value.fit,
-    tags: draft.tags || editForm.value.tags,
-    warmth_level: Number(draft.warmth_level || editForm.value.warmth_level || 3),
-    breathability_level: Number(draft.breathability_level || editForm.value.breathability_level || 3),
-    formality_level: Number(draft.formality_level || editForm.value.formality_level || 2.5),
-    layering_role: draft.layering_role || editForm.value.layering_role,
-    color_family: draft.color_family || editForm.value.color_family,
-    weather_risk: draft.weather_risk || editForm.value.weather_risk
-  }
+  editForm.value = mergeAiDraftIntoForm(editForm.value, aiDraft.value || {})
   showToast('已应用到表单，保存后生效')
 }
 
@@ -552,27 +504,6 @@ const formatDate = (dateStr) => {
     hour: '2-digit',
     minute: '2-digit'
   })
-}
-
-const sourceLabel = (source) => {
-  if (source === 'volcano_ark') return 'Doubao 视觉识别'
-  if (source === 'local_heuristic' || source === 'mock') return 'Mock 模拟识别'
-  if (source === 'manual') return '手动录入'
-  return source || '-'
-}
-
-const levelLabel = (value) => {
-  if (value === undefined || value === null || value === '') return '-'
-  const numeric = Number(value)
-  return Number.isFinite(numeric) ? `${numeric}/5` : '-'
-}
-
-const roleLabel = (value) => {
-  return layeringRoles.find(item => item.value === value)?.label || '-'
-}
-
-const colorFamilyLabel = (value) => {
-  return colorFamilies.find(item => item.value === value)?.label || '-'
 }
 
 watch(

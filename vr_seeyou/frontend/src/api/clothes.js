@@ -21,18 +21,6 @@ export function createCloth(data) {
   })
 }
 
-// 旧接口：上传衣物图片并直接保存
-export function uploadCloth(file) {
-  const formData = new FormData()
-  formData.append('image', file)
-
-  return request({
-    url: '/api/clothes/upload',
-    method: 'post',
-    data: formData
-  })
-}
-
 // 获取所有衣物
 export function getClothes(params = {}) {
   return request({

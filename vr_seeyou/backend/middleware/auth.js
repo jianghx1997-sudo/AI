@@ -15,22 +15,18 @@ function signToken(user) {
   );
 }
 
-function getRequestToken(req, { allowQueryToken = false } = {}) {
+function getRequestToken(req) {
   const header = req.headers.authorization || '';
   const match = header.match(/^Bearer\s+(.+)$/i);
   if (match?.[1]) return match[1];
 
-  if (allowQueryToken && req.method === 'GET') {
-    return req.query.token || '';
-  }
-
   return '';
 }
 
-function createAuthMiddleware(options = {}) {
+function createAuthMiddleware() {
   return async function authMiddleware(req, res, next) {
     try {
-      const token = getRequestToken(req, options);
+      const token = getRequestToken(req);
       if (!token) {
         return res.status(401).json({ success: false, error: '请先登录' });
       }
@@ -50,7 +46,7 @@ function createAuthMiddleware(options = {}) {
 }
 
 const requireAuth = createAuthMiddleware();
-const requireImageAuth = createAuthMiddleware({ allowQueryToken: true });
+const requireImageAuth = createAuthMiddleware();
 
 module.exports = {
   requireAuth,

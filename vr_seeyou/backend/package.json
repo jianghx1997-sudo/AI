@@ -6,8 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "check": "node --check server.js && node --check database.js && node --check routes/auth.js && node --check routes/clothes.js && node --check controllers/wardrobeController.js && node --check controllers/weatherController.js && node --check controllers/recommendationController.js && node --check services/recommendationService.js && node --check services/aiReviewService.js && node --check aiService.js",
-    "test:recommendation": "node scripts/recommendation-smoke.js",
+    "check": "node --check server.js && node --check database.js && node --check middleware/auth.js && node --check routes/auth.js && node --check routes/clothes.js && node --check controllers/wardrobeController.js && node --check controllers/weatherController.js && node --check controllers/recommendationController.js && node --check services/recommendationService.js && node --check services/recommendation/foundation.js && node --check services/recommendation/gaps.js && node --check services/aiReviewService.js && node --check utils/validation.js && node --check scripts/recommendation-fixtures.js && node --check aiService.js",
+    "test:recommendation": "node scripts/recommendation-smoke.js && node scripts/recommendation-fixtures.js",
     "test:api": "node scripts/api-smoke.js"
   },
   "dependencies": {

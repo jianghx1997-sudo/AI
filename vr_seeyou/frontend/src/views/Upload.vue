@@ -192,6 +192,18 @@
 import { computed, ref } from 'vue'
 import { showToast } from 'vant'
 import { createCloth, recognizeCloth } from '@/api/clothes'
+import {
+  categories,
+  seasons,
+  occasions,
+  fits,
+  styles,
+  layeringRoles,
+  colorFamilies,
+  emptyClothForm,
+  createClothFormFromRecognition,
+  sourceLabel as getSourceLabel
+} from '@/utils/clothForm'
 
 const cameraInput = ref(null)
 const albumInput = ref(null)
@@ -205,55 +217,15 @@ const recognizeError = ref('')
 const showSuccess = ref(false)
 const showAdvanced = ref(false)
 
-const categories = ['上衣', '裤子', '裙子', '外套', '鞋子', '配饰']
-const seasons = ['春/秋', '夏季', '冬季', '四季']
-const occasions = ['通勤', '约会', '运动', '休闲', '正式', '旅行']
-const fits = ['修身', '宽松', '标准']
-const styles = ['休闲', '商务', '运动', '正式', '街头', '简约', '优雅']
-const layeringRoles = [
-  { label: '自动判断', value: '' },
-  { label: '上衣/内搭', value: 'top' },
-  { label: '下装', value: 'bottom' },
-  { label: '外套', value: 'outer' },
-  { label: '鞋子', value: 'shoes' },
-  { label: '配饰', value: 'accessory' }
-]
-const colorFamilies = [
-  { label: '自动判断', value: '' },
-  { label: '中性色', value: 'neutral' },
-  { label: '冷色系', value: 'cool' },
-  { label: '暖色系', value: 'warm' },
-  { label: '亮点色', value: 'accent' },
-  { label: '未知', value: 'unknown' }
-]
-
-const emptyForm = () => ({
-  name: '',
-  category: '上衣',
-  color: '',
-  season: '四季',
-  material: '',
-  style: '休闲',
-  occasion: '休闲',
-  fit: '标准',
-  warmth_level: 3,
-  breathability_level: 3,
-  formality_level: 2.5,
-  layering_role: '',
-  color_family: '',
-  weather_risk: '',
-  tags: '',
-  confidence: 0,
-  source: 'manual'
-})
-
-const form = ref(emptyForm())
+const form = ref(emptyClothForm())
 
 const sourceLabel = computed(() => {
-  if (form.value.source === 'manual') return '手动录入'
-  if (form.value.source === 'volcano_ark') return 'Doubao 视觉识别'
-  if (form.value.source === 'local_heuristic') return 'Mock 模拟识别'
-  return form.value.source ? `识别来源：${form.value.source}` : '待确认'
+  if (!form.value.source) return '待确认'
+  if (!['manual', 'volcano_ark', 'local_heuristic', 'mock'].includes(form.value.source)) {
+    return `识别来源：${form.value.source}`
+  }
+  const label = getSourceLabel(form.value.source)
+  return label === '-' ? '待确认' : label
 })
 
 const triggerPicker = (mode) => {
@@ -265,26 +237,7 @@ const triggerPicker = (mode) => {
 }
 
 const fillFormFromResult = (result) => {
-  const fallback = emptyForm()
-  form.value = {
-    name: result?.name || fallback.name,
-    category: result?.category || fallback.category,
-    color: result?.color || fallback.color,
-    season: seasons.includes(result?.season) ? result.season : fallback.season,
-    material: result?.material || fallback.material,
-    style: styles.includes(result?.style) ? result.style : fallback.style,
-    occasion: occasions.includes(result?.occasion) ? result.occasion : fallback.occasion,
-    fit: fits.includes(result?.fit) ? result.fit : fallback.fit,
-    warmth_level: Number(result?.warmth_level || fallback.warmth_level),
-    breathability_level: Number(result?.breathability_level || fallback.breathability_level),
-    formality_level: Number(result?.formality_level || fallback.formality_level),
-    layering_role: layeringRoles.some(item => item.value === result?.layering_role) ? result.layering_role : fallback.layering_role,
-    color_family: colorFamilies.some(item => item.value === result?.color_family) ? result.color_family : fallback.color_family,
-    weather_risk: result?.weather_risk || fallback.weather_risk,
-    tags: result?.tags || fallback.tags,
-    confidence: Number(result?.confidence || 0),
-    source: result?.raw?.source || result?.source || fallback.source
-  }
+  form.value = createClothFormFromRecognition(result)
 }
 
 const handleFileChange = (event) => {
@@ -303,7 +256,7 @@ const handleFileChange = (event) => {
   recognizedImage.value = null
   recognizeError.value = ''
   showAdvanced.value = false
-  form.value = emptyForm()
+  form.value = emptyClothForm()
 
   setTimeout(() => {
     startUpload()
@@ -361,7 +314,7 @@ const retryRecognize = () => {
   recognizedImage.value = null
   recognizeError.value = ''
   showAdvanced.value = false
-  form.value = emptyForm()
+  form.value = emptyClothForm()
   startUpload()
 }
 
@@ -409,7 +362,7 @@ const reset = () => {
   saving.value = false
   showSuccess.value = false
   showAdvanced.value = false
-  form.value = emptyForm()
+  form.value = emptyClothForm()
   if (cameraInput.value) cameraInput.value.value = ''
   if (albumInput.value) albumInput.value.value = ''
 }

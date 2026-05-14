@@ -54,7 +54,7 @@ vr_seeyou/
 - 用户名：`demo`
 - 密码：读取 `backend/.env` 的 `DEMO_USER_PASSWORD`，默认开发值为 `demo123456`
 
-业务接口均需要登录。衣物、穿着记录、推荐反馈按用户隔离；衣物图片通过 `/api/images/...` 鉴权访问，不再直接公开 `/uploads` 目录。
+业务接口均需要登录。衣物、穿着记录、推荐反馈按用户隔离；衣物图片通过 `/api/images/...` + `Authorization` 头鉴权访问，不再直接公开 `/uploads` 目录，也不要把 token 放进图片 URL。
 
 ## 📝 配置AI API
 
@@ -74,7 +74,6 @@ vr_seeyou/
 - `GET /api/clothes?search=关键词`：搜索/筛选衣物
 - `POST /api/clothes/:id/reanalyze`：对已有衣物重新 AI 分析，返回待确认标签
 - `GET /api/images/:filename`：登录后访问衣物图片
-- `POST /api/clothes/upload`：旧版兼容接口，上传后立即保存
 - `GET /api/weather/current?city=110101`：查询高德实况天气
 - `GET /api/recommendations/outfits?aiReview=true`：根据天气、场景和衣橱生成穿搭推荐，并可启用 AI 评审
 - `POST /api/recommendations/feedback`：记录喜欢、已穿、不适合及原因
@@ -84,9 +83,10 @@ vr_seeyou/
 ```bash
 cd backend
 npm run check
+# 包含基础 smoke 和 20 个固定衣橱/天气/场景 fixture 回归
 npm run test:recommendation
 
-# 后端服务启动后可运行
+# 默认会自动启动临时后端，使用临时 SQLite 和上传目录，不污染开发数据
 npm run test:api
 
 cd ../frontend
