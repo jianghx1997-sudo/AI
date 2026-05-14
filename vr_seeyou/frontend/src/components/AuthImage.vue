@@ -1,9 +1,13 @@
 <template>
   <img
+    v-if="currentSrc"
     :src="currentSrc"
     :alt="alt"
     @error="handleNativeError"
   />
+  <div v-else class="auth-image-placeholder" role="img" :aria-label="alt || '图片加载失败'">
+    <span>{{ failed ? '图片加载失败' : '图片加载中' }}</span>
+  </div>
 </template>
 
 <script setup>
@@ -30,6 +34,7 @@ const props = defineProps({
 })
 
 const currentSrc = ref(props.fallback)
+const failed = ref(false)
 let objectUrl = ''
 let requestId = 0
 
@@ -49,6 +54,7 @@ function revokeObjectUrl() {
 async function loadImage() {
   const id = ++requestId
   revokeObjectUrl()
+  failed.value = false
   currentSrc.value = props.fallback
 
   if (!props.source) return
@@ -61,14 +67,17 @@ async function loadImage() {
     }
     objectUrl = nextUrl
     currentSrc.value = nextUrl || props.fallback
+    failed.value = !currentSrc.value
   } catch (error) {
     if (id === requestId) {
+      failed.value = true
       currentSrc.value = props.fallback
     }
   }
 }
 
 function handleNativeError() {
+  failed.value = true
   currentSrc.value = props.fallback
 }
 
@@ -79,3 +88,18 @@ onBeforeUnmount(() => {
   revokeObjectUrl()
 })
 </script>
+
+<style scoped>
+.auth-image-placeholder {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #eef5f1, #f7faf8);
+  color: #82918b;
+  font-size: 13px;
+  text-align: center;
+}
+</style>
