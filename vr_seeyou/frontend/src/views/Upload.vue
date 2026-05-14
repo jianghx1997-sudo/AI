@@ -3,7 +3,7 @@
     <van-nav-bar title="添加衣物" fixed placeholder />
 
     <div class="upload-content page-shell">
-      <section class="upload-entry surface-card" v-if="!previewUrl && !uploading">
+      <section class="upload-entry surface-card" v-if="!previewUrl && !uploading && !processingPhoto">
         <div class="entry-icon">
           <van-icon name="photograph" size="34" />
         </div>
@@ -11,34 +11,33 @@
         <p>选择一张清晰的单品照片</p>
 
         <div class="entry-actions">
-          <button class="entry-action primary" @click="triggerPicker('camera')">
+          <label class="entry-action primary">
             <van-icon name="photograph" size="22" />
             <span>拍照</span>
-          </button>
-          <button class="entry-action" @click="triggerPicker('album')">
+            <input
+              ref="cameraInput"
+              class="file-picker-input"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              @change="handleFileChange"
+            />
+          </label>
+          <label class="entry-action">
             <van-icon name="photo-o" size="22" />
             <span>从相册选择</span>
-          </button>
+            <input
+              ref="albumInput"
+              class="file-picker-input"
+              type="file"
+              accept="image/*"
+              @change="handleFileChange"
+            />
+          </label>
         </div>
-
-        <input
-          ref="cameraInput"
-          type="file"
-          accept="image/*"
-          capture="environment"
-          hidden
-          @change="handleFileChange"
-        />
-        <input
-          ref="albumInput"
-          type="file"
-          accept="image/*"
-          hidden
-          @change="handleFileChange"
-        />
       </section>
 
-      <section class="preview-area" v-if="previewUrl && !uploading">
+      <section class="preview-area" v-if="previewUrl && !uploading && !processingPhoto">
         <img :src="previewUrl" class="preview-image" alt="衣物照片" />
 
         <div class="notice-card surface-card" v-if="recognizeError">
@@ -164,10 +163,10 @@
         </div>
       </section>
 
-      <section class="uploading-area surface-card" v-if="uploading">
+      <section class="uploading-area surface-card" v-if="uploading || processingPhoto">
         <van-loading type="spinner" color="#2f8f7b" size="36" />
-        <p>正在识别衣物</p>
-        <span>稍等片刻</span>
+        <p>{{ processingPhoto ? '正在处理照片' : '正在识别衣物' }}</p>
+        <span>{{ processingPhoto ? '相机照片较大时会自动压缩' : '稍等片刻' }}</span>
       </section>
     </div>
 
@@ -210,12 +209,18 @@ const albumInput = ref(null)
 const previewUrl = ref('')
 const selectedFile = ref(null)
 const uploading = ref(false)
+const processingPhoto = ref(false)
 const saving = ref(false)
 const recognizeResult = ref(null)
 const recognizedImage = ref(null)
 const recognizeError = ref('')
 const showSuccess = ref(false)
 const showAdvanced = ref(false)
+
+const MAX_UPLOAD_BYTES = 9 * 1024 * 1024
+const HARD_UPLOAD_LIMIT_BYTES = 10 * 1024 * 1024
+const MAX_IMAGE_EDGE = 1800
+const SUPPORTED_UPLOAD_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
 
 const form = ref(emptyClothForm())
 
@@ -228,35 +233,136 @@ const sourceLabel = computed(() => {
   return label === '-' ? '待确认' : label
 })
 
-const triggerPicker = (mode) => {
-  if (mode === 'camera') {
-    cameraInput.value?.click()
-    return
-  }
-  albumInput.value?.click()
-}
-
 const fillFormFromResult = (result) => {
   form.value = createClothFormFromRecognition(result)
 }
 
-const handleFileChange = (event) => {
-  const file = event.target.files[0]
-  if (!file) return
+const loadImageFromFile = (file) => {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const image = new Image()
+    image.onload = () => {
+      URL.revokeObjectURL(url)
+      resolve(image)
+    }
+    image.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('照片读取失败，请重试'))
+    }
+    image.src = url
+  })
+}
 
-  if (file.size > 10 * 1024 * 1024) {
-    showToast('图片大小不能超过10MB')
+const canvasToBlob = (canvas, type, quality) => {
+  return new Promise((resolve) => {
+    if (canvas.toBlob) {
+      canvas.toBlob(resolve, type, quality)
+      return
+    }
+
+    const dataUrl = canvas.toDataURL(type, quality)
+    const [header, payload] = dataUrl.split(',')
+    const mime = header.match(/:(.*?);/)?.[1] || type
+    const binary = atob(payload)
+    const bytes = new Uint8Array(binary.length)
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index)
+    }
+    resolve(new Blob([bytes], { type: mime }))
+  })
+}
+
+const compressImageFile = async (file) => {
+  const supportedType = SUPPORTED_UPLOAD_TYPES.includes(String(file.type || '').toLowerCase())
+  if (supportedType && file.size <= MAX_UPLOAD_BYTES) {
+    return file
+  }
+
+  showToast(file.size > MAX_UPLOAD_BYTES ? '照片较大，正在压缩' : '正在转换照片格式')
+  const image = await loadImageFromFile(file)
+  const ratio = Math.min(1, MAX_IMAGE_EDGE / Math.max(image.naturalWidth || image.width, image.naturalHeight || image.height))
+  const width = Math.max(1, Math.round((image.naturalWidth || image.width) * ratio))
+  const height = Math.max(1, Math.round((image.naturalHeight || image.height) * ratio))
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+  ctx.drawImage(image, 0, 0, width, height)
+
+  const qualities = [0.82, 0.74, 0.66, 0.58]
+  let bestBlob = null
+  for (const quality of qualities) {
+    const blob = await canvasToBlob(canvas, 'image/jpeg', quality)
+    if (!blob) continue
+    bestBlob = blob
+    if (blob.size <= MAX_UPLOAD_BYTES) break
+  }
+
+  if (!bestBlob) {
+    throw new Error('照片压缩失败，请从相册选择较小图片')
+  }
+
+  const filename = file.name?.replace(/\.[^.]+$/, '.jpg') || `camera-${Date.now()}.jpg`
+  return new File([bestBlob], filename, {
+    type: 'image/jpeg',
+    lastModified: Date.now()
+  })
+}
+
+const handleFileChange = async (event) => {
+  const pickedFile = event.target.files[0]
+  event.target.value = ''
+
+  if (!pickedFile) {
+    showToast('没有选择照片，请重试')
+    return
+  }
+
+  if (pickedFile.size <= 0) {
+    showToast('照片文件无效，请重试')
+    return
+  }
+
+  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
+  previewUrl.value = URL.createObjectURL(pickedFile)
+  selectedFile.value = null
+  recognizeResult.value = null
+  recognizedImage.value = null
+  recognizeError.value = ''
+  showAdvanced.value = false
+  form.value = emptyClothForm()
+  processingPhoto.value = true
+  showToast('已选择照片，正在处理')
+
+  let file
+  try {
+    file = await compressImageFile(pickedFile)
+  } catch (error) {
+    recognizeError.value = error.message || '照片处理失败，请重试'
+    showToast(recognizeError.value)
+    processingPhoto.value = false
+    return
+  }
+
+  if (!file) {
+    recognizeError.value = '没有选择照片，请重试'
+    showToast(recognizeError.value)
+    processingPhoto.value = false
+    return
+  }
+
+  if (file.size > HARD_UPLOAD_LIMIT_BYTES) {
+    recognizeError.value = '照片仍超过10MB，请从相册选择较小图片'
+    showToast(recognizeError.value)
+    processingPhoto.value = false
     return
   }
 
   if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
   selectedFile.value = file
   previewUrl.value = URL.createObjectURL(file)
-  recognizeResult.value = null
-  recognizedImage.value = null
-  recognizeError.value = ''
-  showAdvanced.value = false
-  form.value = emptyClothForm()
+  processingPhoto.value = false
+  showToast('照片处理完成，开始识别')
 
   setTimeout(() => {
     startUpload()
@@ -359,6 +465,7 @@ const reset = () => {
   recognizedImage.value = null
   recognizeError.value = ''
   uploading.value = false
+  processingPhoto.value = false
   saving.value = false
   showSuccess.value = false
   showAdvanced.value = false
@@ -406,6 +513,7 @@ const reset = () => {
 }
 
 .entry-action {
+  position: relative;
   min-width: 0;
   min-height: 88px;
   border: 1px solid var(--sw-border);
@@ -419,12 +527,24 @@ const reset = () => {
   justify-content: center;
   font-size: 14px;
   font-weight: 650;
+  cursor: pointer;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .entry-action.primary {
   border-color: var(--sw-primary);
   background: var(--sw-primary-soft);
   color: var(--sw-primary);
+}
+
+.file-picker-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
 }
 
 .preview-image {
