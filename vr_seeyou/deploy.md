@@ -322,3 +322,35 @@ pm2 logs seeyou-backend
 1. 后端日志：`pm2 logs seeyou-backend`
 2. Nginx 错误日志：`sudo tail -f /var/log/nginx/error.log`
 3. 浏览器开发者工具 Network 面板
+
+---
+
+## 后续更新推荐方式
+
+线上服务器推荐使用项目根目录的 `deploy.sh` 一键更新。脚本会拉取当前分支、备份 SQLite 数据库、安装依赖、检查后端、构建前端、重启 PM2 后端并验证健康接口。
+
+```bash
+cd /var/www/seeyou-repo/vr_seeyou
+bash deploy.sh
+```
+
+默认配置：
+
+```bash
+APP_ROOT=/var/www/seeyou-repo/vr_seeyou
+BRANCH=codex/vr-seeyou-current-version
+PM2_APP=seeyou-backend
+HEALTH_URL=http://127.0.0.1:3000/api/health
+```
+
+如需临时更新其他分支：
+
+```bash
+BRANCH=codex/other-branch bash deploy.sh
+```
+
+更新前请确认不要覆盖或提交这些线上文件和目录：
+
+- `backend/.env`
+- `backend/data/wardrobe.db`
+- `backend/uploads/`
