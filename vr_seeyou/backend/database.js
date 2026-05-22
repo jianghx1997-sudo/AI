@@ -733,6 +733,40 @@ const dbAsync = {
     });
   },
 
+  getWearLogsByDateRange: ({ userId, startDate, endDate } = {}) => {
+    return new Promise((resolve, reject) => {
+      let scopedUserId;
+      try {
+        scopedUserId = normalizeRequiredUserId(userId);
+      } catch (error) {
+        return reject(error);
+      }
+
+      const sql = `
+        SELECT
+          wear_logs.*,
+          substr(wear_logs.worn_at, 1, 10) AS worn_date,
+          clothes.name AS cloth_name,
+          clothes.image_path AS image_path,
+          clothes.category AS category,
+          clothes.color AS color,
+          clothes.season AS season,
+          clothes.style AS style
+        FROM wear_logs
+        LEFT JOIN clothes ON clothes.id = wear_logs.cloth_id
+        WHERE wear_logs.user_id = ?
+          AND substr(wear_logs.worn_at, 1, 10) >= ?
+          AND substr(wear_logs.worn_at, 1, 10) <= ?
+        ORDER BY wear_logs.worn_at DESC, wear_logs.id DESC
+      `;
+
+      db.all(sql, [scopedUserId, startDate, endDate], (err, rows) => {
+        if (err) return reject(err);
+        resolve(rows);
+      });
+    });
+  },
+
   addRecommendationSnapshot: (snapshot) => {
     return new Promise((resolve, reject) => {
       const now = new Date().toISOString();

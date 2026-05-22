@@ -4,6 +4,7 @@ import Upload from '../views/Upload.vue'
 import Wardrobe from '../views/Wardrobe.vue'
 import ClothDetail from '../views/ClothDetail.vue'
 import Recommendations from '../views/Recommendations.vue'
+import WearCalendar from '../views/WearCalendar.vue'
 import Login from '../views/Login.vue'
 import Profile from '../views/Profile.vue'
 import { getCurrentUser } from '../api/auth'
@@ -39,6 +40,12 @@ const routes = [
     name: 'Recommendations',
     component: Recommendations,
     meta: { title: '今日推荐', requiresAuth: true }
+  },
+  {
+    path: '/calendar',
+    name: 'WearCalendar',
+    component: WearCalendar,
+    meta: { title: '穿搭日历', requiresAuth: true }
   },
   {
     path: '/profile',

@@ -88,6 +88,15 @@ export function getWearLogs(id, limit = 20) {
   })
 }
 
+// 获取按月聚合的穿搭日历
+export function getWearCalendar(month) {
+  return request({
+    url: '/api/wear-calendar',
+    method: 'get',
+    params: { month, _t: Date.now() }
+  })
+}
+
 // 获取分类统计
 export function getCategoryStats() {
   return request({

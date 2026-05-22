@@ -52,6 +52,57 @@ function pickClothPayload(body) {
   return payload;
 }
 
+function getMonthRange(monthText) {
+  const normalized = String(monthText || '').trim();
+  if (!/^\d{4}-\d{2}$/.test(normalized)) {
+    return null;
+  }
+
+  const [year, month] = normalized.split('-').map(Number);
+  if (month < 1 || month > 12) {
+    return null;
+  }
+
+  const startDate = `${normalized}-01`;
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const endDate = `${normalized}-${String(lastDay).padStart(2, '0')}`;
+
+  return { month: normalized, startDate, endDate };
+}
+
+function groupWearLogsByDate(logs) {
+  const days = {};
+  logs.forEach(log => {
+    const date = log.worn_date || String(log.worn_at || '').slice(0, 10);
+    if (!date) return;
+    if (!days[date]) {
+      days[date] = {
+        date,
+        count: 0,
+        items: []
+      };
+    }
+
+    days[date].count += 1;
+    days[date].items.push({
+      id: log.id,
+      cloth_id: log.cloth_id,
+      worn_at: log.worn_at,
+      occasion: log.occasion,
+      weather: log.weather,
+      note: log.note,
+      cloth_name: log.cloth_name,
+      image_path: log.image_path,
+      category: log.category,
+      color: log.color,
+      season: log.season,
+      style: log.style
+    });
+  });
+
+  return days;
+}
+
 async function recognizeFile(file) {
   const imagePath = file.path;
   const originalName = file.originalname;
@@ -292,6 +343,35 @@ router.get('/location/ip', locateByIpHandler);
 router.get('/location/regeo', reverseGeocodeHandler);
 router.get('/recommendations/outfits', getOutfitRecommendations);
 router.post('/recommendations/feedback', submitRecommendationFeedback);
+
+router.get('/wear-calendar', async (req, res) => {
+  try {
+    const requestedMonth = req.query.month || new Date().toISOString().slice(0, 7);
+    const range = getMonthRange(requestedMonth);
+    if (!range) {
+      return res.status(400).json({ success: false, error: '月份格式应为 YYYY-MM' });
+    }
+
+    const logs = await dbAsync.getWearLogsByDateRange({
+      userId: req.user.id,
+      startDate: range.startDate,
+      endDate: range.endDate
+    });
+
+    res.json({
+      success: true,
+      data: {
+        month: range.month,
+        start_date: range.startDate,
+        end_date: range.endDate,
+        total_wears: logs.length,
+        days: groupWearLogsByDate(logs)
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message || '获取穿搭日历失败' });
+  }
+});
 
 router.post('/clothes/:id/favorite', async (req, res) => {
   try {

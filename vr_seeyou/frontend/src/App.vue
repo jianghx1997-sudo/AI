@@ -10,6 +10,7 @@
       <van-tabbar-item to="/" icon="home-o">首页</van-tabbar-item>
       <van-tabbar-item to="/upload" icon="photograph">添加</van-tabbar-item>
       <van-tabbar-item to="/recommend" icon="bulb-o">推荐</van-tabbar-item>
+      <van-tabbar-item to="/calendar" icon="calendar-o">日历</van-tabbar-item>
       <van-tabbar-item to="/wardrobe" icon="apps-o">衣橱</van-tabbar-item>
     </van-tabbar>
   </div>
@@ -22,7 +23,7 @@ import { useRoute } from 'vue-router'
 const route = useRoute()
 const activeTab = ref(0)
 
-const routeMap = { '/': 0, '/upload': 1, '/recommend': 2, '/wardrobe': 3 }
+const routeMap = { '/': 0, '/upload': 1, '/recommend': 2, '/calendar': 3, '/wardrobe': 4 }
 
 watch(
   () => route.path,

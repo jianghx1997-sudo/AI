@@ -308,10 +308,20 @@ async function runSmoke() {
         weather: recommendations.data.data.weather?.weather,
         temperature: recommendations.data.data.weather?.temperature,
         item_ids: firstOutfit.items.map(item => item.id),
-        feedback: 'viewed'
+        feedback: 'worn'
       })
     });
     assert.strictEqual(feedback.response.status, 200, 'recommendation feedback should accept owned snapshot linkage');
+
+    const calendarMonth = new Date().toISOString().slice(0, 7);
+    const calendar = await request(`/api/wear-calendar?month=${calendarMonth}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    assert.strictEqual(calendar.response.status, 200, 'wear calendar endpoint should respond 200');
+    assert(
+      calendar.data?.data?.total_wears >= firstOutfit.items.length,
+      'wear calendar should include worn recommendation feedback records'
+    );
   }
 }
 
