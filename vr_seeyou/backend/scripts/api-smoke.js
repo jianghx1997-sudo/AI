@@ -206,6 +206,87 @@ async function runSmoke() {
 
     const imageWithQueryToken = await request(`/api/images/${imageName}?token=${encodeURIComponent(token)}`);
     assert.strictEqual(imageWithQueryToken.response.status, 401, 'image endpoint should reject query token auth');
+
+    const otherUsername = `smoke_other_${Date.now()}`;
+    const otherPassword = 'other123456';
+    const otherRegister = await request('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({
+        username: otherUsername,
+        password: otherPassword,
+        display_name: 'Smoke Other'
+      })
+    });
+    assert.strictEqual(otherRegister.response.status, 200, 'second smoke user should register');
+    const otherToken = otherRegister.data?.data?.token;
+    assert(otherToken, 'second smoke user should receive token');
+
+    const otherImageName = 'smoke-other-image.png';
+    fs.writeFileSync(
+      path.join(isolatedUploadDir, otherImageName),
+      Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=', 'base64')
+    );
+
+    const otherCreated = await request('/api/clothes', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${otherToken}` },
+      body: JSON.stringify({
+        name: 'Other User Cloth',
+        image_path: `/uploads/${otherImageName}`,
+        category: '裤子',
+        warmth_level: 2
+      })
+    });
+    assert.strictEqual(otherCreated.response.status, 200, 'second user should create own cloth');
+
+    const primaryList = await request('/api/clothes', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    assert.strictEqual(primaryList.response.status, 200, 'primary user list should respond 200');
+    assert(
+      primaryList.data.data.some(item => item.name === 'Smoke Image Cloth'),
+      'primary user should see own cloth'
+    );
+    assert(
+      !primaryList.data.data.some(item => item.name === 'Other User Cloth'),
+      'primary user should not see second user cloth'
+    );
+
+    const otherList = await request('/api/clothes', {
+      headers: { Authorization: `Bearer ${otherToken}` }
+    });
+    assert.strictEqual(otherList.response.status, 200, 'second user list should respond 200');
+    assert(
+      otherList.data.data.some(item => item.name === 'Other User Cloth'),
+      'second user should see own cloth'
+    );
+    assert(
+      !otherList.data.data.some(item => item.name === 'Smoke Image Cloth'),
+      'second user should not see primary user cloth'
+    );
+
+    const otherReadsPrimary = await request(`/api/clothes/${created.data.data.id}`, {
+      headers: { Authorization: `Bearer ${otherToken}` }
+    });
+    assert.strictEqual(otherReadsPrimary.response.status, 404, 'second user should not read primary user cloth by id');
+
+    const otherReadsPrimaryImage = await request(`/api/images/${imageName}`, {
+      headers: { Authorization: `Bearer ${otherToken}` }
+    });
+    assert.strictEqual(otherReadsPrimaryImage.response.status, 404, 'second user should not read primary user image');
+
+    const otherStats = await request('/api/stats/categories', {
+      headers: { Authorization: `Bearer ${otherToken}` }
+    });
+    assert.strictEqual(otherStats.response.status, 200, 'second user stats should respond 200');
+    assert(
+      otherStats.data.data.some(item => item.category === '裤子' && item.count === 1),
+      'second user stats should include only own category'
+    );
+    assert(
+      !otherStats.data.data.some(item => item.category === '涓婅。'),
+      'second user stats should not include primary user category'
+    );
   }
 
   const recommendations = await request('/api/recommendations/outfits?aiReview=false&weather=%E6%99%B4&temperature=22', {

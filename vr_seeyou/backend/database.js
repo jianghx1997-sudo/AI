@@ -71,6 +71,14 @@ function sanitizeUser(row) {
   return safeUser;
 }
 
+function normalizeRequiredUserId(userId) {
+  const parsed = Number(userId);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error('userId is required for user-scoped data access');
+  }
+  return parsed;
+}
+
 function isDefaultDemoPassword() {
   return !process.env.DEMO_USER_PASSWORD;
 }
@@ -457,11 +465,16 @@ const dbAsync = {
     return new Promise((resolve, reject) => {
       let sql = 'SELECT * FROM clothes WHERE 1=1';
       const params = [];
+      let scopedUserId;
 
-      if (filters.userId) {
-        sql += ' AND user_id = ?';
-        params.push(parseInt(filters.userId));
+      try {
+        scopedUserId = normalizeRequiredUserId(filters.userId);
+      } catch (error) {
+        return reject(error);
       }
+
+      sql += ' AND user_id = ?';
+      params.push(scopedUserId);
       if (filters.category) {
         sql += ' AND category = ?';
         params.push(filters.category);
@@ -510,12 +523,14 @@ const dbAsync = {
   // 根据ID获取衣物
   getClothById: (id, userId) => {
     return new Promise((resolve, reject) => {
-      const params = [parseInt(id)];
-      let sql = 'SELECT * FROM clothes WHERE id = ?';
-      if (userId) {
-        sql += ' AND user_id = ?';
-        params.push(parseInt(userId));
+      let scopedUserId;
+      try {
+        scopedUserId = normalizeRequiredUserId(userId);
+      } catch (error) {
+        return reject(error);
       }
+      const params = [parseInt(id), scopedUserId];
+      const sql = 'SELECT * FROM clothes WHERE id = ? AND user_id = ?';
       db.get(sql, params, (err, row) => {
         if (err) return reject(err);
         resolve(row || null);
@@ -526,6 +541,12 @@ const dbAsync = {
   // 更新衣物
   updateCloth: (id, updates, userId) => {
     return new Promise((resolve, reject) => {
+      let scopedUserId;
+      try {
+        scopedUserId = normalizeRequiredUserId(userId);
+      } catch (error) {
+        return reject(error);
+      }
       const allowed = [
         'name', 'image_path', 'brand', 'purchase_date', 'category', 'color',
         'season', 'material', 'style', 'occasion', 'fit', 'tags',
@@ -539,10 +560,10 @@ const dbAsync = {
       const values = keys.map(k => updates[k]);
       values.push(new Date().toISOString());
       values.push(parseInt(id));
-      if (userId) values.push(parseInt(userId));
+      values.push(scopedUserId);
 
       db.run(
-        `UPDATE clothes SET ${sets}, updated_at = ? WHERE id = ?${userId ? ' AND user_id = ?' : ''}`,
+        `UPDATE clothes SET ${sets}, updated_at = ? WHERE id = ? AND user_id = ?`,
         values,
         function (err) {
           if (err) return reject(err);
@@ -555,12 +576,14 @@ const dbAsync = {
   // 删除衣物
   deleteCloth: (id, userId) => {
     return new Promise((resolve, reject) => {
-      const params = [parseInt(id)];
-      let sql = 'DELETE FROM clothes WHERE id = ?';
-      if (userId) {
-        sql += ' AND user_id = ?';
-        params.push(parseInt(userId));
+      let scopedUserId;
+      try {
+        scopedUserId = normalizeRequiredUserId(userId);
+      } catch (error) {
+        return reject(error);
       }
+      const params = [parseInt(id), scopedUserId];
+      const sql = 'DELETE FROM clothes WHERE id = ? AND user_id = ?';
       db.run(sql, params, function (err) {
         if (err) return reject(err);
         resolve({ deleted: this.changes > 0 });
@@ -571,12 +594,14 @@ const dbAsync = {
   // 获取分类统计
   getCategoryStats: (userId) => {
     return new Promise((resolve, reject) => {
-      const params = [];
-      let sql = 'SELECT category, COUNT(*) as count FROM clothes WHERE 1=1';
-      if (userId) {
-        sql += ' AND user_id = ?';
-        params.push(parseInt(userId));
+      let scopedUserId;
+      try {
+        scopedUserId = normalizeRequiredUserId(userId);
+      } catch (error) {
+        return reject(error);
       }
+      const params = [scopedUserId];
+      let sql = 'SELECT category, COUNT(*) as count FROM clothes WHERE user_id = ?';
       sql += ' GROUP BY category';
       db.all(
         sql,
@@ -592,12 +617,14 @@ const dbAsync = {
   // 切换收藏状态
   toggleFavorite: (id, userId) => {
     return new Promise((resolve, reject) => {
-      const params = [new Date().toISOString(), parseInt(id)];
-      let sql = 'UPDATE clothes SET is_favorite = NOT is_favorite, updated_at = ? WHERE id = ?';
-      if (userId) {
-        sql += ' AND user_id = ?';
-        params.push(parseInt(userId));
+      let scopedUserId;
+      try {
+        scopedUserId = normalizeRequiredUserId(userId);
+      } catch (error) {
+        return reject(error);
       }
+      const params = [new Date().toISOString(), parseInt(id), scopedUserId];
+      const sql = 'UPDATE clothes SET is_favorite = NOT is_favorite, updated_at = ? WHERE id = ? AND user_id = ?';
       db.run(
         sql,
         params,
@@ -614,7 +641,12 @@ const dbAsync = {
     return new Promise((resolve, reject) => {
       const now = new Date().toISOString();
       const clothId = parseInt(id);
-      const userId = details.user_id ? parseInt(details.user_id) : null;
+      let userId;
+      try {
+        userId = normalizeRequiredUserId(details.user_id);
+      } catch (error) {
+        return reject(error);
+      }
 
       db.serialize(() => {
         db.run('BEGIN TRANSACTION');
@@ -638,8 +670,8 @@ const dbAsync = {
 
             const wearLogId = this.lastID;
             db.run(
-              `UPDATE clothes SET wear_count = wear_count + 1, last_worn = ?, updated_at = ? WHERE id = ?${userId ? ' AND user_id = ?' : ''}`,
-              userId ? [details.worn_at || now, now, clothId, userId] : [details.worn_at || now, now, clothId],
+              `UPDATE clothes SET wear_count = wear_count + 1, last_worn = ?, updated_at = ? WHERE id = ? AND user_id = ?`,
+              [details.worn_at || now, now, clothId, userId],
               function (updateErr) {
                 if (updateErr) {
                   db.run('ROLLBACK');
@@ -673,23 +705,24 @@ const dbAsync = {
 
   getWearLogs: ({ clothId, userId, limit = 20 } = {}) => {
     return new Promise((resolve, reject) => {
-      const params = [];
+      let scopedUserId;
+      try {
+        scopedUserId = normalizeRequiredUserId(userId);
+      } catch (error) {
+        return reject(error);
+      }
+      const params = [scopedUserId];
       let sql = `
         SELECT wear_logs.*, clothes.name AS cloth_name, clothes.image_path AS image_path
         FROM wear_logs
         LEFT JOIN clothes ON clothes.id = wear_logs.cloth_id
-        WHERE 1=1
+        WHERE wear_logs.user_id = ?
       `;
 
       if (clothId) {
         sql += ' AND wear_logs.cloth_id = ?';
         params.push(parseInt(clothId));
       }
-      if (userId) {
-        sql += ' AND wear_logs.user_id = ?';
-        params.push(parseInt(userId));
-      }
-
       sql += ' ORDER BY wear_logs.worn_at DESC, wear_logs.id DESC LIMIT ?';
       params.push(Number(limit) || 20);
 
