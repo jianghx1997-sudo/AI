@@ -24,14 +24,14 @@
               v-for="item in occasions"
               :key="item"
               :class="{ active: occasion === item }"
-              @click="occasion = item"
+              @click="selectOccasion(item)"
             >
               {{ item }}
             </button>
           </div>
         </div>
 
-        <van-button type="primary" round block :loading="loading" @click="loadRecommendations">
+        <van-button type="primary" round block :loading="loading" @click="loadRecommendations({ force: true })">
           生成今日搭配
         </van-button>
 
@@ -41,6 +41,7 @@
         </div>
 
         <div class="location-status" v-if="locationStatus">{{ locationStatus }}</div>
+        <div class="cache-status" v-if="cacheStatus">{{ cacheStatus }}</div>
       </section>
 
       <section class="manual-panel surface-card" v-if="showManual">
@@ -259,12 +260,12 @@ import { computed, nextTick, onMounted, ref } from 'vue'
 import { showToast } from 'vant'
 import {
   getCurrentWeather,
-  getOutfitRecommendations,
   locateByIp,
   reverseGeocode,
   submitRecommendationFeedback
 } from '@/api/clothes'
 import AuthImage from '@/components/AuthImage.vue'
+import { useRecommendationCacheStore } from '@/stores/recommendationCache'
 
 const occasions = ['通勤', '约会', '运动', '休闲', '正式', '旅行']
 const city = ref('110101')
@@ -282,6 +283,8 @@ const loadingLocation = ref(false)
 const locationStatus = ref('')
 const useLiveWeather = ref(false)
 const showManual = ref(false)
+const cacheStatus = ref('')
+const recommendationCache = useRecommendationCacheStore()
 
 const breakdownLabels = {
   weather: '天气',
@@ -553,28 +556,61 @@ const locateCurrentCity = async () => {
   }
 }
 
-const loadRecommendations = async () => {
-  loading.value = true
+const applyRecommendationData = (data) => {
+  weather.value = data.weather
+  outfits.value = data.outfits || []
+  gaps.value = data.gaps || []
+  gapSuggestions.value = data.gap_suggestions || []
+  recommendationSnapshotId.value = data.recommendation_snapshot_id || null
+}
+
+const buildRecommendationParams = () => ({
+  occasion: occasion.value,
+  weather: manualWeather.value,
+  temperature: manualTemperature.value,
+  city: city.value,
+  useWeather: useLiveWeather.value,
+  aiReview: true
+})
+
+const cacheAgeLabel = (timestamp) => {
+  if (!timestamp) return ''
+  const seconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000))
+  if (seconds < 60) return '刚刚生成'
+  return `${Math.round(seconds / 60)}分钟前生成`
+}
+
+const refreshRecommendationsInBackground = async (params) => {
   try {
-    const res = await getOutfitRecommendations({
-      occasion: occasion.value,
-      weather: manualWeather.value,
-      temperature: manualTemperature.value,
-      city: city.value,
-      useWeather: useLiveWeather.value,
-      aiReview: true
-    })
-    if (res.success) {
-      weather.value = res.data.weather
-      outfits.value = res.data.outfits || []
-      gaps.value = res.data.gaps || []
-      gapSuggestions.value = res.data.gap_suggestions || []
-      recommendationSnapshotId.value = res.data.recommendation_snapshot_id || null
+    const result = await recommendationCache.fetchRecommendations(params, { force: true })
+    applyRecommendationData(result.data)
+    cacheStatus.value = '推荐已更新'
+  } catch (error) {
+    console.warn('后台刷新推荐失败:', error)
+  }
+}
+
+const selectOccasion = (item) => {
+  if (occasion.value === item) return
+  occasion.value = item
+  loadRecommendations()
+}
+
+const loadRecommendations = async ({ force = false, silent = false } = {}) => {
+  if (!silent) loading.value = true
+  try {
+    const params = buildRecommendationParams()
+    const result = await recommendationCache.fetchRecommendations(params, { force })
+    applyRecommendationData(result.data)
+    cacheStatus.value = result.fromCache ? `已使用缓存推荐，${cacheAgeLabel(result.cachedAt)}` : '推荐已生成'
+
+    if (result.fromCache && Date.now() - result.cachedAt > 2 * 60 * 1000) {
+      refreshRecommendationsInBackground(params)
     }
   } catch (error) {
     showToast(error.message || '推荐生成失败')
   } finally {
-    loading.value = false
+    if (!silent) loading.value = false
   }
 }
 
@@ -618,7 +654,8 @@ const submitFeedback = async (outfit, feedback, feedbackReason = '') => {
       [key]: { feedback, reason: feedbackReason }
     }
     showToast(label)
-    await loadRecommendations()
+    recommendationCache.clearCache()
+    await loadRecommendations({ force: true })
   } catch (error) {
     showToast(error.message || '反馈记录失败')
   } finally {
@@ -713,6 +750,13 @@ onMounted(() => {
   padding: 9px 10px;
   border-radius: var(--sw-radius);
   background: var(--sw-surface-soft);
+  color: var(--sw-text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.cache-status {
+  margin-top: 8px;
   color: var(--sw-text-muted);
   font-size: 12px;
   text-align: center;

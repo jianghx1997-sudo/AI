@@ -191,6 +191,7 @@
 import { computed, ref } from 'vue'
 import { showToast } from 'vant'
 import { createCloth, recognizeCloth } from '@/api/clothes'
+import { useRecommendationCacheStore } from '@/stores/recommendationCache'
 import {
   categories,
   seasons,
@@ -204,6 +205,7 @@ import {
   sourceLabel as getSourceLabel
 } from '@/utils/clothForm'
 
+const recommendationCache = useRecommendationCacheStore()
 const cameraInput = ref(null)
 const albumInput = ref(null)
 const previewUrl = ref('')
@@ -443,6 +445,7 @@ const confirmSave = async () => {
     }
     const res = await createCloth(payload)
     if (res.success) {
+      recommendationCache.markWardrobeChanged()
       showSuccess.value = true
       showToast('保存成功')
     } else {

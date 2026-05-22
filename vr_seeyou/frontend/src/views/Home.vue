@@ -112,9 +112,11 @@ import {
   reverseGeocode
 } from '@/api/clothes'
 import { useAuthStore } from '@/stores/auth'
+import { useRecommendationCacheStore } from '@/stores/recommendationCache'
 import AuthImage from '@/components/AuthImage.vue'
 
 const authStore = useAuthStore()
+const recommendationCache = useRecommendationCacheStore()
 const stats = ref([])
 const recentClothes = ref([])
 const analysis = ref(null)
@@ -135,6 +137,27 @@ const weatherSubtitle = computed(() => {
   }
   return `${analysis.value?.total || 0} 件衣物已整理`
 })
+
+const prefetchHomeRecommendations = () => {
+  const liveWeather = currentWeather.value
+  const baseParams = liveWeather?.available
+    ? {
+        weather: liveWeather.weather,
+        temperature: liveWeather.temperature,
+        city: liveWeather.adcode || '',
+        useWeather: true,
+        aiReview: true
+      }
+    : {
+        weather: '晴',
+        temperature: 22,
+        city: '',
+        useWeather: false,
+        aiReview: true
+      }
+
+  recommendationCache.prefetchFrequentScenes(baseParams)
+}
 
 const getBrowserPosition = () => {
   if (!navigator.geolocation || !window.isSecureContext) {
@@ -162,6 +185,9 @@ const loadWeatherByCity = async (cityCode, statusText) => {
   if (res.success) {
     currentWeather.value = res.data
     weatherStatus.value = res.data?.available ? statusText : (res.data?.message || '天气暂不可用')
+    if (res.data?.available) {
+      prefetchHomeRecommendations()
+    }
     return res.data?.available === true
   }
   return false
@@ -173,6 +199,7 @@ const loadDefaultWeather = async () => {
     if (res.success) {
       currentWeather.value = res.data
       weatherStatus.value = res.data?.available ? '使用默认城市天气' : (res.data?.message || '天气暂不可用')
+      prefetchHomeRecommendations()
       return
     }
   } catch (error) {

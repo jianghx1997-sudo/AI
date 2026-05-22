@@ -306,6 +306,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { showToast, showSuccessToast } from 'vant'
 import { getClothById, getWearLogs, updateCloth, deleteCloth, toggleFavorite, recordWear, reanalyzeCloth } from '@/api/clothes'
 import AuthImage from '@/components/AuthImage.vue'
+import { useRecommendationCacheStore } from '@/stores/recommendationCache'
 import {
   categories,
   seasons,
@@ -324,6 +325,7 @@ import {
 
 const route = useRoute()
 const router = useRouter()
+const recommendationCache = useRecommendationCacheStore()
 const cloth = ref(null)
 const loading = ref(true)
 const showDeleteConfirm = ref(false)
@@ -447,6 +449,7 @@ const saveEdit = async () => {
   try {
     const res = await updateCloth(route.params.id, editForm.value)
     if (res.success) {
+      recommendationCache.markWardrobeChanged()
       showSuccessToast('保存成功')
       isEditing.value = false
       await fetchCloth()
@@ -460,6 +463,7 @@ const handleFavorite = async () => {
   try {
     const res = await toggleFavorite(route.params.id)
     if (res.success) {
+      recommendationCache.markWardrobeChanged()
       cloth.value.is_favorite = res.data.is_favorite
       showToast(cloth.value.is_favorite ? '已收藏' : '已取消收藏')
     }
@@ -472,6 +476,7 @@ const handleWear = async () => {
   try {
     const res = await recordWear(route.params.id)
     if (res.success) {
+      recommendationCache.markWardrobeChanged()
       cloth.value.wear_count = res.data.wear_count
       cloth.value.last_worn = res.data.last_worn
       await fetchWearLogs()
@@ -486,6 +491,7 @@ const handleDelete = async () => {
   try {
     const res = await deleteCloth(route.params.id)
     if (res.success) {
+      recommendationCache.markWardrobeChanged()
       showSuccessToast('删除成功')
       router.push('/wardrobe')
     }
